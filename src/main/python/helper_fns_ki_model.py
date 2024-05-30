@@ -4,11 +4,8 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 import random
-import joblib
 import datetime
 
 # Setze den Random Seed für NumPy

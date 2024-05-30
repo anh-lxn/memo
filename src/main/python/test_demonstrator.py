@@ -1,7 +1,6 @@
 import helper_fns_ki_model as h_fn_ki
 import helper_fns_data as h_fn_data
 import glob
-import numpy as np
 
 # Pfad zu den CSV-Dateien (Auslesen von Dateien beginnend mit Nummerierung 000 bis 999)
 file_pattern = '../resources/messdaten/[0-9][0-9][0-9]*.csv'
