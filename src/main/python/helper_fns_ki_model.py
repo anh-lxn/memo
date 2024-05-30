@@ -1,3 +1,14 @@
+"""
+Dateiname: helper_fns_ki_model.py
+Autor: Florian Schmidt
+Datum: 30.05.2024
+
+Beschreibung:
+Dieses Skript stellt Hilfsfunktionen für die Verarbeitung, Normalisierung und Vorhersage von Dehnungsdaten durch.
+Die Daten werden mithilfe eines neuronalen Netzmodells trainiert und getestet.
+Das Modell kann gespeichert und später für Vorhersagen wieder geladen werden.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

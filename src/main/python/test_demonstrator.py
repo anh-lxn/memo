@@ -1,3 +1,12 @@
+"""
+Dateiname: test_demonstrator_model.py
+Autor: Florian Schmidt
+Datum: 30.05.2024
+
+Beschreibung:
+Dieses Skript dient dem Testen des trainierten KI-Modells. Die Ergebnisse werden Visualisiert in einem 2D-Plot
+"""
+
 import helper_fns_ki_model as h_fn_ki
 import helper_fns_data as h_fn_data
 import glob

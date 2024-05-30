@@ -1,3 +1,14 @@
+"""
+Dateiname: train_demonstrator_model.py
+Autor: Florian Schmidt
+Datum: 30.05.2024
+
+Beschreibung:
+Dieses Skript führt die Verarbeitung, Normalisierung und Vorhersage von Dehnungsdaten durch. Die Daten werden
+mithilfe eines neuronalen Netzmodells trainiert und getestet. Das Modell kann gespeichert und später für Vorhersagen
+wieder geladen werden.
+"""
+
 import helper_fns_data as h_fn
 import helper_fns_ki_model as h_fn_ki
 import glob
