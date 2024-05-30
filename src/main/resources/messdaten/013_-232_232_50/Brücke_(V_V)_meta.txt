@@ -1,0 +1,35 @@
+Protokollname: 013_-232_232_50
+Benutzer: MSTUSER
+Projektname: D:\Eigene Dateien\MSTUSER\Bähr\Halbbrücke_MeMo_Kopelmann.seproj
+Dateiname: D:\Eigene Dateien\MSTUSER\EIGENE DOKUMENTE\SignalExpress Data\013_-232_232_50\Brücke_(V_V).tdms
+Dateigröße: 19,531kB
+Protokolldauer: 34,5 Sekunden
+Zeitschritt (s): 20m
+Wiederholungsintervall (s): 500m
+Werteanzahl im Protokoll: 1725
+Protokolldatentyp: Time-WDT-Real
+Einheit: mV/V
+Protokollbeginn: 23.05.2024 14:53:18,407
+Zeitzone: Mitteleuropäische Sommerzeit
+Sendername: SignalExpress 2015
+Senderversion: 15.0
+Dateiformatversion: 2.1
+Signalnamen protokollieren:
+     013_-232_232_50 - Brücke (V/V) - R0__PXI1Slot2_ai0
+     013_-232_232_50 - Brücke (V/V) - R1__PXI1Slot2_ai1
+     013_-232_232_50 - Brücke (V/V) - R2__PXI1Slot2_ai2
+     013_-232_232_50 - Brücke (V/V) - R3__PXI1Slot2_ai3
+     013_-232_232_50 - Brücke (V/V) - R4__PXI1Slot2_ai4
+     013_-232_232_50 - Brücke (V/V) - R5__PXI1Slot2_ai5
+     013_-232_232_50 - Brücke (V/V) - R6__PXI1Slot2_ai6
+     013_-232_232_50 - Brücke (V/V) - R7__PXI1Slot2_ai7
+
+
+Alarme:
+Kein
+
+Startbedingungen:
+Kein
+
+Stoppbedingungen:
+Kein
