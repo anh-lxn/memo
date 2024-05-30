@@ -156,10 +156,10 @@ def test_random_samples(model, X_test, y_test, num_samples=15):
     # Wähle 10 zufällige Indizes aus dem Test-Set aus
     random_indices = random.sample(range(len(X_test)), num_samples)
     print(random_indices)
-    print("X_test",X_test)
-    print("y_test:",y_test)
-    print("X_test[random_indices]",X_test[random_indices])
-    print("y_test[random_indices]",y_test[random_indices])
+    #print("X_test",X_test)
+    #print("y_test:",y_test)
+    #print("X_test[random_indices]",X_test[random_indices])
+    #print("y_test[random_indices]",y_test[random_indices])
     X_sample = X_test[random_indices]
     y_sample = y_test[random_indices]
 
@@ -170,3 +170,24 @@ def test_random_samples(model, X_test, y_test, num_samples=15):
         y_pred = model(X_sample)
 
     return X_sample, y_sample, y_pred
+
+def normalize_strain_data(strains):
+    #### Normalisierung der Strain Listen
+    # Umwandeln in ein numpy array für einfachere Handhabung
+    strains_array = np.array(strains)
+
+    # Listen mit min- und max-Werten erstellen
+    min_vals = np.min(strains_array, axis=0)
+    max_vals = np.max(strains_array, axis=0)
+
+    # Vermeidung von Division durch Null
+    range_vals = max_vals - min_vals
+    range_vals[
+        range_vals == 0] = 1  # Falls min und max gleich sind, setze den Bereich auf 1 um Division durch Null zu vermeiden
+
+    # Normierte Werte berechnen
+    normalized_strains = (strains_array - min_vals) / range_vals
+
+    # In Listen zurück konvertieren
+    normalized_strain_list = normalized_strains.tolist()
+    return normalized_strain_list
