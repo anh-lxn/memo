@@ -133,7 +133,7 @@ def train_model(X_train,X_test,y_train,y_test):
     save_model(model)
     return model
 
-def save_model(model, path_prefix='../resources/models/model_demonstrator_'):
+def save_model(model, path_prefix='../resources/models/model_demonstrator'):
     # Aktuelles Datum auslesen
     current_date = datetime.datetime.now()
     # Formatierung des Datums & Uhrzeit
