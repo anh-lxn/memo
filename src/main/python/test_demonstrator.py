@@ -49,10 +49,10 @@ strain_8_norm = normalized_strains_list[7]
 X_train, X_test, y_train, y_test = h_fn_ki.prepare_data(strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm,
                        load_pos_x, load_pos_y)
 
-model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_v02_normalized.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator__30_05_2024_15-52-32.pth')
 
 # Testing + Visualisierung der Daten
-X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_train,y_train, num_samples=10)
+X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_train,y_train, num_samples=25)
 
 # Extrahiere die x- und y-Werte
 x_values_sample = y_sample[:, 0].numpy()

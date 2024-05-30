@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import random
 import joblib
+import datetime
 
 # Setze den Random Seed für NumPy
 #np.random.seed(42)
@@ -86,7 +87,7 @@ def train_model(X_train,X_test,y_train,y_test):
     loss_fn = nn.MSELoss()  # mean square error
     optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
-    n_epochs = 30000   # number of epochs to run
+    n_epochs = 46000   # number of epochs to run
 
     # Listen für Training- und Test-Plots
     train_losses = []
@@ -132,9 +133,14 @@ def train_model(X_train,X_test,y_train,y_test):
     save_model(model)
     return model
 
-def save_model(model, path='../resources/models/model_demonstrator_v02_normalized.pth'):
-    torch.save(model.state_dict(), path)
-    print(f"Model saved to {path}")
+def save_model(model, path_prefix='../resources/models/model_demonstrator_'):
+    # Aktuelles Datum auslesen
+    current_date = datetime.datetime.now()
+    # Formatierung des Datums & Uhrzeit
+    formatted_datetime = current_date.strftime('%d_%m_%Y_%H-%M-%S')
+    filename = f"{path_prefix}_{formatted_datetime}.pth"
+    torch.save(model.state_dict(), filename)
+    print(f"Model saved to {filename}")
 
 # Funktion zum Laden des Modells
 def load_model(path='../resources/models/model_demonstrator_v02_normalized.pth'):
