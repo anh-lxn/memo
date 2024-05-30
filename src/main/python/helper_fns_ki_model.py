@@ -132,12 +132,12 @@ def train_model(X_train,X_test,y_train,y_test):
     save_model(model)
     return model
 
-def save_model(model, path='model_demonstrator_v02_normalized.pth'):
+def save_model(model, path='../resources/models/model_demonstrator_v02_normalized.pth'):
     torch.save(model.state_dict(), path)
     print(f"Model saved to {path}")
 
 # Funktion zum Laden des Modells
-def load_model(path='model_demonstrator_v01.pth'):
+def load_model(path='../resources/models/model_demonstrator_v02_normalized.pth'):
     # Definieren des neuronalen Netzes
     model = nn.Sequential(
         nn.Linear(8, 128), # 8 Inputs für die 8 Sensorwerte

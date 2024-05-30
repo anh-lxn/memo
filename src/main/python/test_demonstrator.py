@@ -4,7 +4,7 @@ import glob
 import numpy as np
 
 # Pfad zu den CSV-Dateien (Auslesen von Dateien beginnend mit Nummerierung 000 bis 999)
-file_pattern = 'messdaten/[0-9][0-9][0-9]*.csv'
+file_pattern = '../resources/messdaten/[0-9][0-9][0-9]*.csv'
 files = glob.glob(file_pattern)
 
 # Listen zum Speichern der Werte (load_pos_x, load_pos_y sind Positionen der Lasteinleitung, strain_1 bis strain_8
@@ -57,19 +57,16 @@ strain_7_norm = normalized_strains_list[6]
 strain_8_norm = normalized_strains_list[7]
 # Ergebnis
 #print("normalized_strain_list: ", normalized_strains_list[:][:5])
-
-
 ########
-
 
 # Test und Trainingsdaten erstellen
 X_train, X_test, y_train, y_test = h_fn_ki.prepare_data(strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm,
                        load_pos_x, load_pos_y)
 
-model = h_fn_ki.load_model(path='model_demonstrator_v02_normalized.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_v02_normalized.pth')
 
 # Testing + Visualisierung der Daten
-X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_train,y_train, num_samples=18)
+X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_train,y_train, num_samples=10)
 
 # Extrahiere die x- und y-Werte
 x_values_sample = y_sample[:, 0].numpy()

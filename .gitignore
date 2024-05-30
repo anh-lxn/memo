@@ -1,0 +1,14 @@
+# Virtuelle Umgebungen ignorieren
+venv/
+env/
+
+# Python-Bytecode-Dateien ignorieren
+*.pyc
+__pycache__/
+
+# PyCharm-spezifische Dateien/Verzeichnisse ignorieren
+.idea/
+*.iml
+
+# VSCode-spezifische Dateien/Verzeichnisse ignorieren
+.vscode/
