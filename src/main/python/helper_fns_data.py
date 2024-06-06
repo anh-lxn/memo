@@ -3,6 +3,29 @@ from scipy.signal import butter, filtfilt
 import numpy as np
 import csv
 
+def read_data_from_txt_adafruit(filepath):
+    # Listen initialisieren
+    strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7 = [], [], [], [], [], [], [], []
+
+    # CSV-Datei einlesen
+    with open(filepath, mode='r') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            # Jede Zeile enthält Timestamp und 8 Sensorwerte
+            timestamp = row['Timestamp']
+            # Zugriff auf die Sensorwerte
+            strain_0.append(float(row['Voltage1']))
+            strain_1.append(float(row['Voltage2']))
+            strain_2.append(float(row['Voltage3']))
+            strain_3.append(float(row['Voltage4']))
+            strain_4.append(float(row['Voltage5']))
+            strain_5.append(float(row['Voltage6']))
+            strain_6.append(float(row['Voltage7']))
+            strain_7.append(float(row['Voltage8']))
+
+        print(strain_0)
+    return strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7
+
 def read_data_from_txt(filepath):
     with open(filepath, 'r', encoding='latin-1') as file:
         lines = file.readlines()
@@ -47,7 +70,6 @@ def plot_strain_data(strain_data, dt):
 
     # Generiere die x-Werte
     x_values = [i * dt for i in range(num_points)]
-
     # Erstelle den Plot
     plt.figure(figsize=(12, 8))
 
