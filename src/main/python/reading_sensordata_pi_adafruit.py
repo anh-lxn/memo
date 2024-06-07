@@ -4,8 +4,7 @@ Autor: Florian Schmidt
 Datum: 05.06.2024
 
 Beschreibung:
-Diese Datei dient dem Aufnehmen von Sensordaten (8 Sensoren). Diese Datei gibt Zufallswerte, welche die Sensordaten
-repräsentieren
+Diese Datei dient dem Aufnehmen von Sensordaten (8 Sensoren) mittels Raspberry Pi und Adafruit 1115 AD-Wandlern.
 Die ausgelesenen Daten werden in einer .csv Datei abgelegt.
 """
 
@@ -27,9 +26,21 @@ dt = 0.25 # sleep time between saved data
 # Liste zur Speicherung der Daten (8 Sensoren)
 data = []
 
-# Funktion zum Generieren von 8 zufälligen Werten (zum Testen)
-def generate_random_values():
-    return [random.uniform(10.0, 12.0) for _ in range(8)]
+import time
+import board
+import busio
+import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.analog_in import AnalogIn
+
+# I2C setup
+i2cbus = busio.I2C(board.SCL, board.SDA)
+ads = ADS.ADS1115(i2cbus, address=0x48)
+
+# Set up analog channels
+ch0 = AnalogIn(ads, ADS.P0)
+ch1 = AnalogIn(ads, ADS.P1)
+ch2 = AnalogIn(ads, ADS.P2)
+ch3 = AnalogIn(ads, ADS.P3)
 
 # Funktion zum Speichern der Daten in eine CSV-Datei
 def save_to_csv(data, output_dir):
@@ -43,9 +54,12 @@ def save_to_csv(data, output_dir):
 # Funktion zum kontinuierlichen Auslesen der Sensordaten
 def read_sensors():
     while not stop_thread:
-        voltages = generate_random_values()
+        curr_voltages = [
+            ch3.voltage,
+            0,0,0,0,0,0,0
+        ]
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        data.append([timestamp] + voltages)
+        data.append([timestamp] + curr_voltages)
         time.sleep(dt)
 
 # Variable zum Stoppen des Threads
