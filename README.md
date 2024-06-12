@@ -18,7 +18,7 @@ Python Project (GUI) for visualizing the interactive MEMO demonstrator. The sens
     - Create virtual environment, if not createt yet by executing: `virtualenv venv`
     - Activate virtual environment by executing `source venv/bin/activate`
     - Run file by executing `python3 src/main/python/live_demo.py` 
-2. Cancel script by pressing: `q`, go full-screen by pressing `f`
+2. Cancel script by pressing: `q`
 
 ### Getting raw training data
 - To create training data start following [Python-File](https://gitlab.mn.tu-dresden.de/sma/demonstratoren_techtextil/memo/-/blob/main/src/main/python/reading_sensordata_pi_adafruit.py?ref_type=heads)
