@@ -12,27 +12,48 @@ model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_30_05_20
 # Funktion zum Berechnen der Lastkoordinate aus
 def calc_loadpoint(model):
     # 1. Auslesen der Sensorwerte über i2C
-    sensor_01 = np.random.uniform(0,2)
-    sensor_02 = np.random.uniform(0,2)
-    sensor_03 = np.random.uniform(0, 2)
-    sensor_04 = np.random.uniform(0, 2)
-    sensor_05 = np.random.uniform(0, 2)
-    sensor_06 = np.random.uniform(0, 2)
-    sensor_07 = np.random.uniform(0, 2)
-    sensor_08 = np.random.uniform(0, 2)
+    sensor_01 = np.random.uniform(0,1)
+    sensor_02 = np.random.uniform(0,1)
+    sensor_03 = np.random.uniform(0, 1)
+    sensor_04 = np.random.uniform(0, 1)
+    sensor_05 = np.random.uniform(0, 1)
+    sensor_06 = np.random.uniform(0, 1)
+    sensor_07 = np.random.uniform(0, 1)
+    sensor_08 = np.random.uniform(0, 1)
 
-    # Beispielhafte Eingabewerte für X_curr
-    X_curr = torch.tensor([[sensor_01, sensor_02, sensor_03, sensor_04, sensor_05, sensor_06, sensor_07, sensor_08]], dtype=torch.float32)
+    # Werte in einer Liste speichern
+    sensor_values = [sensor_01, sensor_02, sensor_03, sensor_04, sensor_05, sensor_06, sensor_07, sensor_08]
 
-    # Berechnung Vorhersage aus trainiertem KI-Model
-    model.eval()  # Setze das Modell in den Auswertungsmodus (deaktiviere Dropout und BatchNorm)
-    with torch.no_grad():  # Deaktiviere das Gradienten-Tracking für die Vorhersage
-        y_pred = model(X_curr)
+    # Maximalen Wert in der Liste finden
+    max_value = max(sensor_values)
 
-    x_values_pred = y_pred[:,0].numpy()
-    y_values_pred = y_pred[:, 1].numpy()
+    # Werte normieren
+    normalized_sensor_values = [value / max_value for value in sensor_values]
 
-    return  x_values_pred[0], y_values_pred[0]
+    # Summe der Sensorwerte ermitteln
+    total_sum = sensor_01 + sensor_02 + sensor_03 + sensor_04 + sensor_05 + sensor_06 + sensor_07 + sensor_08
+
+    # Definieren eines Thresholds um Lastpunkt nur zu plotten, wenn gedrückt wird
+    if total_sum < 1:
+        x_value_pred = [1000]
+        y_value_pred = [1000]
+    else:
+        # Beispielhafte Eingabewerte für X_curr
+        X_curr = torch.tensor([[normalized_sensor_values[0], normalized_sensor_values[1],
+                                normalized_sensor_values[2], normalized_sensor_values[3], normalized_sensor_values[4],
+                                normalized_sensor_values[5], normalized_sensor_values[6],
+                                normalized_sensor_values[7]]], dtype=torch.float32)
+
+        # Berechnung Vorhersage aus trainiertem KI-Model
+        model.eval()  # Setze das Modell in den Auswertungsmodus (deaktiviere Dropout und BatchNorm)
+        with torch.no_grad():  # Deaktiviere das Gradienten-Tracking für die Vorhersage
+            y_pred = model(X_curr) # y_pred enthält die vorhergesagten x- und y-Koordinaten des Lastpunktes
+
+        # Extrahieren der x- und y-Koordinaten, welche das KI-Modell vorhergesagt hat
+        x_value_pred = y_pred[:,0].numpy()
+        y_value_pred = y_pred[:, 1].numpy()
+
+    return  x_value_pred[0], y_value_pred[0]
 
 
 def create_live_scatterplot():
@@ -68,7 +89,7 @@ def create_live_scatterplot():
     mng = plt.get_current_fig_manager()
     mng.full_screen_toggle()
 
-    # Kreise initialisieren
+    # Kreise initialisieren für Plot des Lastpunktes
     circle0 = plt.Circle((0, 0), 45, color='blue', fill=True, linewidth=1, alpha=0.1)
     circle = plt.Circle((0, 0), 30, color='blue', fill=False, linewidth=3, alpha=0.9)
     circle2 = plt.Circle((0, 0), 45, color='blue', fill=False, linewidth=2, alpha=0.6)
@@ -77,7 +98,9 @@ def create_live_scatterplot():
     ax.add_patch(circle)
     ax.add_patch(circle2)
 
+    # Funktion zum Updaten des Plots zur Liverealisation
     def update(frame):
+        # Aufruf der Funktion zum Berechnen der Lastkoordinaten
         load_pos_x, load_pos_y = calc_loadpoint(model)
 
         # Update scatter plot
@@ -89,7 +112,7 @@ def create_live_scatterplot():
         circle2.set_center((load_pos_x, load_pos_y))
 
         return load_scatter, circle0, circle, circle2
-
+    # interval -> Angabe der Zeit in ms, wie oft Plot aktualisiert werden soll
     ani = animation.FuncAnimation(fig, update, frames=None, interval=250, blit=True)
 
     plt.show()
