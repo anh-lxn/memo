@@ -1,7 +1,17 @@
-# Virtuelle Entwicklung erstellen + aktivieren
-# pip3 install adafruit-circuitpython-ads1x15
-# pip3 install gpiod
+"""
+Dateiname: sensor2.py
+Autor: Florian Schmidt
+Datum: 12.06.2024
 
+Beschreibung:
+Diese Datei dient dem Testweisen auslesen von Sensordaten (1 Sensor) mittels Raspberry Pi und Adafruit 1115 AD-Wandler.
+
+Es müssen für das Ausführen dieser Datei folgende Bibliotheken auf dem Raspberry Pi installiert werden (virtuelle Umgebung)
+Virtuelle Entwicklung erstellen + aktivieren
+pip3 install adafruit-circuitpython-ads1x15
+pip3 install gpiod
+"""
+# Imports
 import time
 import board
 import busio
@@ -22,5 +32,5 @@ while True:
     #print("Voltage 0: ", round(ch0.voltage, 3))
     #print("Voltage 1: ", round(ch1.voltage, 3))
     #print("Voltage 2: ", round(ch2.voltage, 3))
-    print("Voltage 3: ", round(ch3.voltage, 3)) # anschluss 3 an ads1115 board
+    print("Voltage 3: ", round(ch3.voltage, 3)) # anschluss A3 an ads1115 board
     time.sleep(0.3)

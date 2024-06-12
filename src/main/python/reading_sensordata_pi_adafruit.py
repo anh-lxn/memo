@@ -32,15 +32,31 @@ import busio
 import adafruit_ads1x15.ads1115 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 
-# I2C setup
+# I2C setup (ads1115 uses following i2c adresses: 0x48, 0x49, 0x4A, 0x4B)
 i2cbus = busio.I2C(board.SCL, board.SDA)
-ads = ADS.ADS1115(i2cbus, address=0x48)
+ads0 = ADS.ADS1115(i2cbus, address=0x48)
+ads1 = ADS.ADS1115(i2cbus, address=0x49)
 
 # Set up analog channels
-ch0 = AnalogIn(ads, ADS.P0)
-ch1 = AnalogIn(ads, ADS.P1)
-ch2 = AnalogIn(ads, ADS.P2)
-ch3 = AnalogIn(ads, ADS.P3)
+ch1 = AnalogIn(ads0, ADS.P0) # entspricht Sensor x
+ch2 = AnalogIn(ads0, ADS.P1) # entspricht Sensor x
+ch3 = AnalogIn(ads0, ADS.P2) # entspricht Sensor x
+ch4 = AnalogIn(ads0, ADS.P3) # entspricht Sensor x
+ch5 = AnalogIn(ads1, ADS.P0) # entspricht Sensor x
+ch6 = AnalogIn(ads1, ADS.P1) # entspricht Sensor x
+ch7 = AnalogIn(ads1, ADS.P2) # entspricht Sensor x
+ch8 = AnalogIn(ads1, ADS.P3) # entspricht Sensor x
+
+# Extracting Voltage Values
+sensor_1 = ch1.voltage
+sensor_2 = ch2.voltage
+sensor_3 = ch3.voltage
+sensor_4 = ch4.voltage
+sensor_5 = ch5.voltage
+sensor_6 = ch6.voltage
+sensor_7 = ch7.voltage
+sensor_8 = ch8.voltage
+
 
 # Funktion zum Speichern der Daten in eine CSV-Datei
 def save_to_csv(data, output_dir):
@@ -54,10 +70,7 @@ def save_to_csv(data, output_dir):
 # Funktion zum kontinuierlichen Auslesen der Sensordaten
 def read_sensors():
     while not stop_thread:
-        curr_voltages = [
-            ch3.voltage,
-            0,0,0,0,0,0,0
-        ]
+        curr_voltages = [sensor_1,sensor_2,sensor_3,sensor_4,sensor_5,sensor_6,sensor_7,sensor_8]
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         data.append([timestamp] + curr_voltages)
         time.sleep(dt)
