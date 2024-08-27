@@ -8,7 +8,6 @@ Dieses Skript stellt Hilfsfunktionen für die Verarbeitung, Normalisierung und V
 Die Daten werden mithilfe eines neuronalen Netzmodells trainiert und getestet.
 Das Modell kann gespeichert und später für Vorhersagen wieder geladen werden.
 """
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -86,6 +85,8 @@ def train_model(X_train,X_test,y_train,y_test):
     model = nn.Sequential(
         nn.Linear(8, 128), # 8 Inputs für die 8 Sensorwerte
         nn.ReLU(),
+        nn.Linear(128, 128),
+        nn.ReLU(),
         nn.Linear(128, 6),
         nn.ReLU(),
         nn.Linear(6, 2)  # zwei Outputs für x- und y-Koordinaten des Lasteinleitungspunktes
@@ -93,9 +94,9 @@ def train_model(X_train,X_test,y_train,y_test):
 
     # Definition von Loss- und Optimierungsfunktionen
     loss_fn = nn.MSELoss()  # mean square error
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0002)
 
-    n_epochs = 46000   # number of epochs to run
+    n_epochs = 80000   # number of epochs to run
 
     # Listen für Training- und Test-Plots
     train_losses = []
@@ -202,6 +203,6 @@ def normalize_strain_data(strains):
     # Normierte Werte berechnen
     normalized_strains = (strains_array - min_vals) / range_vals
 
-    # In Listen zurück konvertieren
+    # In Listen zurückkonvertieren
     normalized_strain_list = normalized_strains.tolist()
     return normalized_strain_list
