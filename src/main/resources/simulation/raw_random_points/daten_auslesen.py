@@ -2,7 +2,7 @@
 import csv
 
 # Schleife über die verschiedenen Dateinamen
-for i in range(1, 10):  # Für belastungspunkt1 bis belastungspunkt9
+for i in range(1, 999):  # Für Lastpunkt 1 bis 999
     file_path = f'sim{i}_SensoranordnungA.txt'
     file_path2 = f'sim{i}_Modellparameter.txt'
     # Listen zum Speichern der Werte

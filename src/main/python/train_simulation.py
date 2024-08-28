@@ -1,10 +1,10 @@
 """
-Dateiname: train_demonstrator_model.py
+Dateiname: train_simulation.py
 Autor: Florian Schmidt
-Datum: 30.05.2024
+Datum: 28.08.2024
 
 Beschreibung:
-Dieses Skript führt die Verarbeitung, Normalisierung und Vorhersage von Dehnungsdaten durch. Die Daten werden
+Dieses Skript führt die Verarbeitung, Normalisierung und Vorhersage von Dehnungsdaten aus einer Simulation durch. Die Daten werden
 mithilfe eines neuronalen Netzmodells trainiert und getestet. Das Modell kann gespeichert und später für Vorhersagen
 wieder geladen werden.
 """
@@ -20,8 +20,8 @@ import csv
 # sind die resultierenden Dehnungswerte der Sensoren 1-8 (Auf Sensoranordnung achten!))
 load_pos_x, load_pos_y, load_value, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7, strain_8 = [], [], [], [], [], [], [], [], [], [], []
 
-# Schleife über die verschiedenen Dateinamen
-for i in range(1, 980):  # Für belastungspunkt1 bis belastungspunkt9
+# Schleife über die verschiedenen Dateinamen (Simulationsdaten)
+for i in range(1, 999):  # Für Datenpunkte 1 bis 999 (verschiedene Lastpunkte)
     file_path = f'../resources/simulation/raw_random_points/sim{i}_SensoranordnungA.txt'
     file_path2 = f'../resources/simulation/raw_random_points/sim{i}_Modellparameter.txt'
     # Listen zum Speichern der Werte
@@ -36,7 +36,7 @@ for i in range(1, 980):  # Für belastungspunkt1 bis belastungspunkt9
             point_x.append(float(row[1]))  # Punkt x in mm speichern
             point_y.append(float(row[2]))  # Punkt y in mm speichern
             strain.append(float(row[3]))  # Dehnung speichern
-            print(strain)
+        # Dehnungen aufteilen auf Einzellisten für jeden Sensor
         strain_1.append(strain[0])
         strain_2.append(strain[1])
         strain_3.append(strain[2])
@@ -84,7 +84,6 @@ strain_8_norm = normalized_strains_list[7]
 # Ergebnis
 #print("normalized_strain_list: ", normalized_strains_list[:][:5])
 ########
-
 
 # Listen in Daten-Hauptliste ablegen
 #data = [load_pos_x,load_pos_y,load_value,strain_1_norm,strain_2_norm,strain_3_norm,strain_4_norm,strain_5_norm,strain_6_norm,strain_7_norm,strain_8_norm]
