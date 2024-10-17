@@ -6,6 +6,10 @@ Datum: 12.06.2024
 Beschreibung:
 Diese Datei dient dem Testweisen auslesen von Sensordaten (1 Sensor) mittels Raspberry Pi und Adafruit 1115 AD-Wandler.
 
+Zusätzlich muss der i2c Bus aktiviert werden über:
+sudo raspi-config  ---> Interface Options ---> I2C --> aktivieren
+sudo i2cdetect -y 1 ausführen, um genutzte i2c Adresse zu ermitteln 0x...
+
 Es müssen für das Ausführen dieser Datei folgende Bibliotheken auf dem Raspberry Pi installiert werden (virtuelle Umgebung)
 Virtuelle Entwicklung erstellen + aktivieren
 pip3 install adafruit-circuitpython-ads1x15
