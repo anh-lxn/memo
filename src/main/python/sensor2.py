@@ -14,6 +14,10 @@ Es müssen für das Ausführen dieser Datei folgende Bibliotheken auf dem Raspbe
 Virtuelle Entwicklung erstellen + aktivieren
 pip3 install adafruit-circuitpython-ads1x15
 pip3 install gpiod
+
+Zum Anschließen des ADS1115 Boards an den Raspberry Pi müssen die SCL (Serial Clock) mit dem GPIO3 Pin des Raspberry und der SDA (Serial Data) Pin mit dem GPIO2 Pin des Raspberrys verbunden werden.#
+SCL --> GPIO3
+SDA --> GPIO2
 """
 # Imports
 import time
@@ -24,7 +28,8 @@ from adafruit_ads1x15.analog_in import AnalogIn
 
 # I2C setup
 i2cbus = busio.I2C(board.SCL, board.SDA)
-ads = ADS.ADS1115(i2cbus, address=0x48)
+ads = ADS.ADS1115(i2cbus, address=0x49)
+ads.gain = 1
 
 # Set up analog channels
 ch0 = AnalogIn(ads, ADS.P0)
