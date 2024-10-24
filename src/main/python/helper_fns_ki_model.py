@@ -65,7 +65,7 @@ def prepare_data(strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, str
     y_combined = np.column_stack((load_pos_x, load_pos_y))
 
     # train-test split for model evaluation
-    X_train, X_test, y_train, y_test = train_test_split(X, y_combined, train_size=0.8, shuffle=True)
+    X_train, X_test, y_train, y_test = train_test_split(X, y_combined, train_size=0.95, shuffle=True)
 
     # Daten skalieren
     #scaler = StandardScaler()
@@ -77,6 +77,8 @@ def prepare_data(strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, str
     X_test = torch.from_numpy(X_test).type(torch.float)
     y_train = torch.from_numpy(y_train).type(torch.float)
     y_test = torch.from_numpy(y_test).type(torch.float)
+
+    print(f'Trainingsdaten: {X_train.shape}, Testdaten: {X_test.shape}')
 
     return X_train, X_test,y_train,y_test
 

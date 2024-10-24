@@ -6,13 +6,14 @@ import csv
 def read_data_from_txt_adafruit(filepath):
     # Listen initialisieren
     strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7 = [], [], [], [], [], [], [], []
-
+    dt = []
     # CSV-Datei einlesen
     with open(filepath, mode='r') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            # Jede Zeile enthält Timestamp und 8 Sensorwerte
+            # Jede Zeile enthält Timestamp, dt und 8 Sensorwerte
             timestamp = row['Timestamp']
+            dt.append(float(row['dt']))
             # Zugriff auf die Sensorwerte
             strain_0.append(float(row['Voltage1']))
             strain_1.append(float(row['Voltage2']))
@@ -23,8 +24,7 @@ def read_data_from_txt_adafruit(filepath):
             strain_6.append(float(row['Voltage7']))
             strain_7.append(float(row['Voltage8']))
 
-        print(strain_0)
-    return strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7
+    return dt,strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7
 
 def read_data_from_txt(filepath):
     with open(filepath, 'r', encoding='latin-1') as file:
@@ -87,6 +87,7 @@ def plot_strain_data(strain_data, dt):
     plt.show()
 
 def butter_lowpass_filter(data, cutoff, fs, order=5):
+    print(data)
     nyquist = 0.5 * fs
     normal_cutoff = cutoff / nyquist
     b, a = butter(order, normal_cutoff, btype='low', analog=False)

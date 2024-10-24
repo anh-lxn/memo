@@ -11,7 +11,6 @@ wieder geladen werden.
 
 import helper_fns_data as h_fn
 import helper_fns_ki_model as h_fn_ki
-import glob
 import numpy as np
 import csv
 
