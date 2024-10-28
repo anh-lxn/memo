@@ -45,7 +45,7 @@ for i in range(1, 999):  # Für Datenpunkte 1 bis 999 (verschiedene Lastpunkte)
         strain_7.append(strain[6])
         strain_8.append(strain[7])
 
-    with open(file_path2,'r') as file:
+    with open(file_path2, 'r') as file:
         reader = csv.reader(file, delimiter=',')
         next(reader)
         for row in reader:
@@ -53,7 +53,8 @@ for i in range(1, 999):  # Für Datenpunkte 1 bis 999 (verschiedene Lastpunkte)
             load_pos_y.append(float(row[1]))
             load_value.append(float(row[3]))
 
-strains = [strain_1,strain_2,strain_3,strain_4,strain_5,strain_6,strain_7,strain_8]
+# Die Listen der Dehnungen zusammenfassen
+strains = [strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7, strain_8]
 
 #### Normalisierung der Strain Listen
 # Umwandeln in ein numpy array für einfachere Handhabung
@@ -80,28 +81,24 @@ strain_5_norm = normalized_strains_list[4]
 strain_6_norm = normalized_strains_list[5]
 strain_7_norm = normalized_strains_list[6]
 strain_8_norm = normalized_strains_list[7]
-# Ergebnis
-#print("normalized_strain_list: ", normalized_strains_list[:][:5])
-########
-
-# Listen in Daten-Hauptliste ablegen
-#data = [load_pos_x,load_pos_y,load_value,strain_1_norm,strain_2_norm,strain_3_norm,strain_4_norm,strain_5_norm,strain_6_norm,strain_7_norm,strain_8_norm]
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-350, 350), (0, 350), (350, 350), (-350, 0), (350, 0), (-350, -350), (0, -350), (350, -350)]
 
 # Positionen der extrahierten Daten visualisieren
-h_fn.create_scatterplot(load_pos_x,load_pos_y,sensor_pos)
+h_fn.create_scatterplot(load_pos_x, load_pos_y, sensor_pos)
 
 # Test und Trainingsdaten erstellen
-X_train, X_test, y_train, y_test = h_fn_ki.prepare_data(strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm,
-                       load_pos_x, load_pos_y)
+X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
+    [strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm],
+    load_pos_x, load_pos_y
+)
 
 # Ki Modell Trainieren
-model = h_fn_ki.train_model(X_train, X_test, y_train, y_test)
+model = h_fn_ki.train_model(X_train, X_val, y_train, y_val)
 
 # Testing + Visualisierung der Daten
-X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_test,y_test, num_samples=10)
+X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model, X_test, y_test, num_samples=10)
 
 # Extrahiere die x- und y-Werte
 x_values_sample = y_sample[:, 0].numpy()
@@ -109,4 +106,4 @@ y_values_sample = y_sample[:, 1].numpy()
 x_values_pred = y_pred[:, 0].numpy()
 y_values_pred = y_pred[:, 1].numpy()
 
-h_fn.create_scatterplot_testing(x_values_sample,x_values_pred,y_values_sample,y_values_pred,sensor_pos)
+h_fn.create_scatterplot_testing(x_values_sample, x_values_pred, y_values_sample, y_values_pred, sensor_pos)

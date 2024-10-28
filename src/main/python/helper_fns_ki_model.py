@@ -18,6 +18,10 @@ from sklearn.model_selection import train_test_split
 import random
 import datetime
 
+from sklearn.preprocessing import StandardScaler
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # Setze den Random Seed für NumPy
 #np.random.seed(42)
 # Setze den Random Seed für Python
@@ -36,69 +40,74 @@ def test_model(model, X_test, y_test):
     # da keine Rückwärtsausbreitung durchgeführt wird.
     with torch.no_grad():
         # Führt einen Vorwärtsdurchlauf durch, um die Vorhersagen des Modells für die Testdaten zu erhalten.
-        y_pred = model(X_test)
+        y_pred = model(X_test.to(device))
         # Berechnet die mittlere absolute Abweichung für die x- und y-Werte.
         # Dies erfolgt durch die absolute Differenz zwischen den vorhergesagten und den tatsächlichen x-Werten,
         # gefolgt von der Mittelwertbildung.
-        accuracy_x = torch.abs(y_pred[:, 0] - y_test[:, 0]).mean().item()
-        accuracy_y = torch.abs(y_pred[:, 1] - y_test[:, 1]).mean().item()
+        accuracy_x = torch.abs(y_pred[:, 0] - y_test[:, 0].to(device)).mean().item()
+        accuracy_y = torch.abs(y_pred[:, 1] - y_test[:, 1].to(device)).mean().item()
         print(f"Mittlere absolute Abweichung für x-Werte in [mm]: {accuracy_x}")
         print(f"Mittlere absolute Abweichung für y-Werte in [mm]: {accuracy_y}")
 
-# Datenvorbereitung und Modelltraining
-def prepare_data(strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7, strain_8,
-                           load_pos_x, load_pos_y):
+def prepare_data(strains, load_pos_x, load_pos_y, scale_data=False):
+    # Sicherstellen, dass die Längen übereinstimmen
+    if not all(len(strain) == len(load_pos_x) for strain in strains):
+        raise ValueError("Die Längen der Eingabewerte stimmen nicht überein.")
 
-    print("test and train gestartet")
-    # Read data
-    data = {'strain_1':strain_1, 'strain_2':strain_2, 'strain_3':strain_3,
-            'strain_4':strain_4, 'strain_5':strain_5, 'strain_6':strain_6, 'strain_7': strain_7,
-            'strain_8':strain_8}
-
+    # Erstellen des DataFrames
+    data = {f'strain_{i+1}': strain for i, strain in enumerate(strains)}
     df = pd.DataFrame(data)
 
-    # Aufteilung in Trainings- und Testdaten
-    X = df[['strain_1', 'strain_2','strain_3', 'strain_4', 'strain_5', 'strain_6',
-            'strain_7', 'strain_8']].values
-
-    # Erstelle numpy Array mit Kombination aus x- und y-Koordinaten
+    # Aufteilen der Daten in Trainings-, Validierungs- und Testdaten
+    X = df.values
     y_combined = np.column_stack((load_pos_x, load_pos_y))
 
-    # train-test split for model evaluation
-    X_train, X_test, y_train, y_test = train_test_split(X, y_combined, train_size=0.95, shuffle=True)
+    # Aufteilen in Train-, Val- und Testdaten
+    X_train, X_temp, y_train, y_temp = train_test_split(X, y_combined, train_size=0.8, shuffle=True)  # 80% für Training
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)  # 10% für Validation, 10% für Test
 
     # Daten skalieren
-    #scaler = StandardScaler()
-    #X_train = scaler.fit_transform(X_train)
-    #X_test = scaler.transform(X_test)
+    if scale_data:
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_val = scaler.transform(X_val)
+        X_test = scaler.transform(X_test)
 
     # Daten in Tensor umwandeln
     X_train = torch.from_numpy(X_train).type(torch.float)
+    X_val = torch.from_numpy(X_val).type(torch.float)
     X_test = torch.from_numpy(X_test).type(torch.float)
     y_train = torch.from_numpy(y_train).type(torch.float)
+    y_val = torch.from_numpy(y_val).type(torch.float)
     y_test = torch.from_numpy(y_test).type(torch.float)
 
-    print(f'Trainingsdaten: {X_train.shape}, Testdaten: {X_test.shape}')
+    print(f'Trainingsdaten: {X_train.shape}, Validierungsdaten: {X_val.shape}, Testdaten: {X_test.shape}')
+    return X_train, X_val, X_test, y_train, y_val, y_test
 
-    return X_train, X_test,y_train,y_test
 
 def train_model(X_train,X_test,y_train,y_test):
     # Definieren des neuronalen Netzes
     model = nn.Sequential(
         nn.Linear(8, 128), # 8 Inputs für die 8 Sensorwerte
         nn.ReLU(),
+        nn.Linear(128, 512),
+        nn.ReLU(),
+        nn.Linear(512, 512),
+        nn.ReLU(),
+        nn.Linear(512, 128),
+        nn.ReLU(),
         nn.Linear(128, 128),
         nn.ReLU(),
         nn.Linear(128, 6),
         nn.ReLU(),
         nn.Linear(6, 2)  # zwei Outputs für x- und y-Koordinaten des Lasteinleitungspunktes
-    )
+    ).to(device)  # Modell auf GPU verschieben
 
     # Definition von Loss- und Optimierungsfunktionen
     loss_fn = nn.MSELoss()  # mean square error
-    optimizer = optim.Adam(model.parameters(), lr=0.0002)
+    optimizer = optim.Adam(model.parameters(), lr=0.00015)
 
-    n_epochs = 80000   # number of epochs to run
+    n_epochs = 70000   # number of epochs to run
 
     # Listen für Training- und Test-Plots
     train_losses = []
@@ -110,8 +119,8 @@ def train_model(X_train,X_test,y_train,y_test):
         model.train()
         optimizer.zero_grad()
         # Forward pass
-        y_pred = model(X_train)
-        loss = loss_fn(y_pred, y_train)
+        y_pred = model(X_train.to(device))
+        loss = loss_fn(y_pred, y_train.to(device))
         # Backward pass
         loss.backward()
         optimizer.step()
@@ -121,8 +130,8 @@ def train_model(X_train,X_test,y_train,y_test):
             print(f"Epoch {epoch}: Test-Loss = {loss.item()}")
             # Append loss and epoch
             with torch.no_grad():
-                y_test_pred = model(X_test)
-                test_loss = loss_fn(y_test_pred, y_test)
+                y_test_pred = model(X_test.to(device))
+                test_loss = loss_fn(y_test_pred, y_test.to(device))
                 test_losses.append(test_loss.item())
             train_losses.append(loss.item())
             epochs.append(epoch)

@@ -59,11 +59,11 @@ sensor_8 = ch8.voltage
 
 
 # Funktion zum Speichern der Daten in eine CSV-Datei
-def save_to_csv(data, output_dir):
+def save_to_csv(data, output_dir, id, x, y, F):
     output_csv_path = os.path.join(output_dir, f'0{id}_strain_values_{x}_{y}_{F}.csv')
     with open(output_csv_path, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Timestamp', 'Voltage1', 'Voltage2', 'Voltage3', 'Voltage4', 'Voltage5', 'Voltage6', 'Voltage7', 'Voltage8'])
+        writer.writerow(['Timestamp', 'dt','Voltage1', 'Voltage2', 'Voltage3', 'Voltage4', 'Voltage5', 'Voltage6', 'Voltage7', 'Voltage8'])
         writer.writerows(data)
     print(f'Daten wurden in {output_csv_path} gespeichert.')
 
@@ -78,19 +78,37 @@ def read_sensors():
 # Variable zum Stoppen des Threads
 stop_thread = False
 
-# Erstelle den Ordner "messungen_aktuelles-datum-zeit"
-current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-output_dir = f'../resources/messungen/messung_pi'
-os.makedirs(output_dir, exist_ok=True)
+# Funktion zur Eingabe der Parameter über die Kommandozeile
+def get_user_inputs():
+    id = int(input("Geben Sie die ID des Lastpunkts ein: "))
+    x = int(input("Geben Sie die X-Position ein: "))
+    y = int(input("Geben Sie die Y-Position ein: "))
+    F = int(input("Geben Sie die Kraft (in Newton) ein: "))
+    return id, x, y, F
 
-# Starten des Sensorlesethreads
-thread = threading.Thread(target=read_sensors)
-thread.start()
+# Hauptprogramm
+if __name__ == "__main__":
+    # Benutzerparameter abfragen
+    id, x, y, F = get_user_inputs()
 
-print("Drücke 'Enter', um das Programm zu beenden und die Daten zu speichern.")
-input()  # Warten auf Benutzereingabe
-stop_thread = True  # Signalisiere dem Thread, dass er stoppen soll
-thread.join()  # Warte, bis der Thread beendet ist
+    # Benutzerdefinierte Variablen
+    dt = 0.25  # sleep time between saved data
+    data = []
 
-# Speichere die Daten, wenn das Programm beendet wird
-save_to_csv(data, output_dir)
+    # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
+    current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    output_dir = f'../../resources/messungen/messung_pc'
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Starte Sensor auslesen (hier Zufallsgenerierung von Zahlen zwischen 4 und 0)
+    stop_thread = False
+    thread = threading.Thread(target=read_sensors)
+    thread.start()
+
+    # Warte auf Benutzereingabe, um das Programm zu beenden
+    input("Drücke 'Enter', um das Programm zu beenden und die Daten zu speichern.")
+    stop_thread = True  # Beende die Schleife
+    thread.join()  # Warte, bis der Thread beendet ist
+
+    # Speichere die Daten, wenn das Programm beendet wird
+    save_to_csv(data, output_dir, id, x, y, F)
