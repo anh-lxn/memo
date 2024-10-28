@@ -1,5 +1,5 @@
 """
-Dateiname: train_demonstrator_model.py
+Dateiname: 04_train_demonstrator_model.py
 Autor: Florian Schmidt
 Datum: 30.05.2024
 
@@ -13,28 +13,38 @@ import helper_fns_data as h_fn
 import helper_fns_ki_model as h_fn_ki
 import glob
 import numpy as np
+import csv
 
-# Pfad zu den CSV-Dateien (Auslesen von Dateien beginnend mit Nummerierung 000 bis 999)
-file_pattern = '../resources/messdaten/[0-9][0-9][0-9]*.csv'
-files = glob.glob(file_pattern)
+# Pfad zur Gesamtdatei angeben
+datei_pfad = "../resources/messungen/auswertung/auswertung_gesamt_2024-10-28_15-42.csv"  # <-- Passe diesen Pfad an
+
 # Listen zum Speichern der Werte (load_pos_x, load_pos_y sind Positionen der Lasteinleitung, strain_1 bis strain_8
 # sind die resultierenden Dehnungswerte der Sensoren 1-8 (Auf Sensoranordnung achten!))
 load_pos_x, load_pos_y, load_value, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7, strain_8 = [], [], [], [], [], [], [], [], [], [], []
 
-# Daten in Listen schreiben
-for file_path in files:
-    last_row = h_fn.read_last_line(file_path)
-    load_value.append(last_row[3])
-    load_pos_x.append(last_row[1])
-    load_pos_y.append(last_row[2])
-    strain_1.append(last_row[4])
-    strain_2.append(last_row[5])
-    strain_3.append(last_row[6])
-    strain_4.append(last_row[7])
-    strain_5.append(last_row[8])
-    strain_6.append(last_row[9])
-    strain_7.append(last_row[10])
-    strain_8.append(last_row[11])
+# Die Datei zeilenweise einlesen
+with open(datei_pfad, mode='r', newline='') as csv_datei:
+    reader = csv.reader(csv_datei)
+
+    # Kopfzeile extrahieren (erste Zeile)
+    kopfzeile = next(reader)
+    print("Kopfzeile:", kopfzeile)
+
+    # Jede weitere Zeile lesen und verarbeiten
+    for zeile in reader:
+        print("Zeile:", zeile)
+        load_pos_x.append(float(zeile[1]))
+        load_pos_y.append(float(zeile[2]))
+        load_value.append(float(zeile[3]))
+        strain_1.append(float(zeile[4]))
+        strain_2.append(float(zeile[5]))
+        strain_3.append(float(zeile[6]))
+        strain_4.append(float(zeile[7]))
+        strain_5.append(float(zeile[8]))
+        strain_6.append(float(zeile[9]))
+        strain_7.append(float(zeile[10]))
+        strain_8.append(float(zeile[11]))
+
 
 strains = [strain_1,strain_2,strain_3,strain_4,strain_5,strain_6,strain_7,strain_8]
 
@@ -78,8 +88,10 @@ sensor_pos = [(-315, 315), (0, 315), (315, 315), (-315, 0), (315, 0), (-315, -31
 h_fn.create_scatterplot(load_pos_x,load_pos_y,sensor_pos)
 
 # Test und Trainingsdaten erstellen
-X_train, X_test, y_train, y_test = h_fn_ki.prepare_data(strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm,
-                       load_pos_x, load_pos_y)
+X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
+    [strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm],
+    load_pos_x, load_pos_y
+)
 
 # Ki Modell Trainieren
 model = h_fn_ki.train_model(X_train, X_test, y_train, y_test)
