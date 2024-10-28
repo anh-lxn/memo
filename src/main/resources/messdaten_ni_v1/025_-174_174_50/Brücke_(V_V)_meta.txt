@@ -1,0 +1,35 @@
+Protokollname: 025_-174_174_50
+Benutzer: MSTUSER
+Projektname: D:\Eigene Dateien\MSTUSER\Bähr\Halbbrücke_MeMo_Kopelmann.seproj
+Dateiname: D:\Eigene Dateien\MSTUSER\EIGENE DOKUMENTE\SignalExpress Data\025_-174_174_50\Brücke_(V_V).tdms
+Dateigröße: 19,531kB
+Protokolldauer: 30 Sekunden
+Zeitschritt (s): 20m
+Wiederholungsintervall (s): 500m
+Werteanzahl im Protokoll: 1500
+Protokolldatentyp: Time-WDT-Real
+Einheit: mV/V
+Protokollbeginn: 23.05.2024 15:15:50,527
+Zeitzone: Mitteleuropäische Sommerzeit
+Sendername: SignalExpress 2015
+Senderversion: 15.0
+Dateiformatversion: 2.1
+Signalnamen protokollieren:
+     025_-174_174_50 - Brücke (V/V) - R0__PXI1Slot2_ai0
+     025_-174_174_50 - Brücke (V/V) - R1__PXI1Slot2_ai1
+     025_-174_174_50 - Brücke (V/V) - R2__PXI1Slot2_ai2
+     025_-174_174_50 - Brücke (V/V) - R3__PXI1Slot2_ai3
+     025_-174_174_50 - Brücke (V/V) - R4__PXI1Slot2_ai4
+     025_-174_174_50 - Brücke (V/V) - R5__PXI1Slot2_ai5
+     025_-174_174_50 - Brücke (V/V) - R6__PXI1Slot2_ai6
+     025_-174_174_50 - Brücke (V/V) - R7__PXI1Slot2_ai7
+
+
+Alarme:
+Kein
+
+Startbedingungen:
+Kein
+
+Stoppbedingungen:
+Kein

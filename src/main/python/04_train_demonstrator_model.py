@@ -16,7 +16,7 @@ import numpy as np
 import csv
 
 # Pfad zur Gesamtdatei angeben
-datei_pfad = "../resources/messungen/auswertung/auswertung_gesamt_2024-10-28_15-42.csv"  # <-- Passe diesen Pfad an
+datei_pfad = "../resources/messungen/auswertung/auswertung_gesamt_2024-10-28_15-42.csv"  # <-- Pfad auf Raspberry anpassen
 
 # Listen zum Speichern der Werte (load_pos_x, load_pos_y sind Positionen der Lasteinleitung, strain_1 bis strain_8
 # sind die resultierenden Dehnungswerte der Sensoren 1-8 (Auf Sensoranordnung achten!))
@@ -94,7 +94,7 @@ X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
 )
 
 # Ki Modell Trainieren
-model = h_fn_ki.train_model(X_train, X_test, y_train, y_test)
+model = h_fn_ki.train_model(X_train, X_val, y_train, y_val)
 
 # Testing + Visualisierung der Daten
 X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_test,y_test, num_samples=4)

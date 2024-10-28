@@ -168,12 +168,18 @@ def load_model(path='../resources/models/model_demonstrator_v02_normalized.pth')
     model = nn.Sequential(
         nn.Linear(8, 128), # 8 Inputs für die 8 Sensorwerte
         nn.ReLU(),
+        nn.Linear(128, 512),
+        nn.ReLU(),
+        nn.Linear(512, 512),
+        nn.ReLU(),
+        nn.Linear(512, 128),
+        nn.ReLU(),
         nn.Linear(128, 128),
         nn.ReLU(),
         nn.Linear(128, 6),
         nn.ReLU(),
         nn.Linear(6, 2)  # zwei Outputs für x- und y-Koordinaten des Lasteinleitungspunktes
-    )
+    ).to(device)
 
     model.load_state_dict(torch.load(path))
     model.eval()  # Set the model to evaluation mode

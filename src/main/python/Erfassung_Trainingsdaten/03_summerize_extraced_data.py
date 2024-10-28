@@ -1,50 +1,46 @@
-import os
-import pandas as pd
-from datetime import datetime
-import re
+import matplotlib.pyplot as plt
+import seaborn as sns
+import random
 
-# Ordner mit CSV-Dateien angeben
-ordner_pfad = "../../resources/messungen/auswertung"  # <-- Passe diesen Pfad an
+# Netzwerkarchitektur
+layers = [8, 16, 2]  # Anzahl der Neuronen pro Schicht
 
-# Aktuelles Datum und Uhrzeit (ohne Sekunden) als Teil des Dateinamens
-datum_zeit = datetime.now().strftime("%Y-%m-%d_%H-%M")
-output_datei = os.path.join(ordner_pfad, f"auswertung_gesamt_{datum_zeit}.csv")
+# Farben und Stil
+sns.set(style="whitegrid")
+plt.figure(figsize=(12, 6))
 
-# Erstelle eine Liste, um die extrahierten Zeilen zu speichern
-alle_zeilen = []
-kopfzeile_gesetzt = False
+# Position der Neuronen auf der y-Achse
+y_offsets = []
+for layer_size in layers:
+    y_offsets.append(range(layer_size))
 
-# Durch alle Dateien im angegebenen Ordner iterieren
-for datei_name in os.listdir(ordner_pfad):
-    if datei_name.endswith('.csv'):
-        # Prüfen, ob der Dateiname mit einer dreistelligen Zahl beginnt
-        if not re.match(r'^\d{3}_', datei_name):
-            print(f"Überspringe Datei {datei_name}, da sie nicht mit einer dreistelligen Zahl beginnt.")
-            continue
+# Zeichne die Verbindungen zwischen den Schichten
+for i in range(len(layers) - 1):
+    connections_drawn = 0
+    for y1 in y_offsets[i]:
+        if connections_drawn >= 5:  # Zeichne nur 5 vollständige Verbindungen pro Neuron
+            break
+        for y2 in random.sample(y_offsets[i + 1], min(5, layers[i + 1])):  # 5 Verbindungen zu zufälligen Neuronen
+            plt.plot([i, i + 1], [y1, y2], 'k-', lw=0.3, alpha=0.4)  # dünne vollständige Linie
+            connections_drawn += 1
 
-        datei_pfad = os.path.join(ordner_pfad, datei_name)
+    # Zeichne gestrichelte Linie nur, wenn genügend Neuronen vorhanden sind
+    if len(y_offsets[i]) > 4 and len(y_offsets[i + 1]) > 4:
+        plt.plot([i, i + 1], [y_offsets[i][4], y_offsets[i + 1][4]], 'k--', lw=0.3, alpha=0.4)
 
-        # CSV-Datei einlesen
-        df = pd.read_csv(datei_pfad)
+# Zeichne die Neuronen
+for i, layer_size in enumerate(layers):
+    plt.scatter([i] * layer_size, y_offsets[i], s=100, color='skyblue', edgecolor='k', zorder=5)
 
-        # Prüfen, ob die letzte Zeile mit '1-2' beginnt
-        if df.iloc[-1, 0].startswith("1-2"):
-            # Die ersten drei Ziffern des Dateinamens extrahieren
-            erste_drei_ziffern = datei_name[:3]
+# Schicht-Labels hinzufügen
+layer_labels = ["Input Layer"] + [f"Hidden Layer {i}" for i in range(1, len(layers) - 2)] + ["Output Layer"]
+for i, label in enumerate(layer_labels):
+    plt.text(i, max(layers) + 20, label, ha="center", va="center", fontweight="bold")
 
-            # Kopfzeile einmalig setzen
-            if not kopfzeile_gesetzt:
-                # Füge eine neue Spalte "Datei_ID" zur Kopfzeile hinzu
-                neue_kopfzeile = ['Datei_ID'] + df.columns.tolist()[1:]
-                alle_zeilen.append(neue_kopfzeile)
-                kopfzeile_gesetzt = True
-
-            # Die letzte Zeile als Liste umwandeln und die ersten drei Ziffern hinzufügen
-            zeile = [erste_drei_ziffern] + df.iloc[-1, 1:].tolist()
-            alle_zeilen.append(zeile)
-
-# Alle Zeilen in eine neue CSV-Datei schreiben
-output_df = pd.DataFrame(alle_zeilen[1:], columns=alle_zeilen[0])
-output_df.to_csv(output_datei, index=False)
-
-print(f"Gesamtdatei gespeichert als: {output_datei}")
+# Anpassungen für eine klare Visualisierung
+plt.title("Vereinfachte Visualisierung des neuronalen Netzwerks", fontsize=14)
+plt.xlabel("Layer", fontsize=12)
+plt.xticks(range(len(layers)), [])
+plt.yticks([])
+plt.grid(False)
+plt.show()

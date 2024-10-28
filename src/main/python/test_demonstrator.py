@@ -12,7 +12,7 @@ import helper_fns_data as h_fn_data
 import glob
 
 # Pfad zu den CSV-Dateien (Auslesen von Dateien beginnend mit Nummerierung 000 bis 999)
-file_pattern = '../resources/messdaten/[0-9][0-9][0-9]*.csv'
+file_pattern = '../resources/messdaten_ni_v1/[0-9][0-9][0-9]*.csv'
 files = glob.glob(file_pattern)
 
 # Listen zum Speichern der Werte (load_pos_x, load_pos_y sind Positionen der Lasteinleitung, strain_1 bis strain_8
