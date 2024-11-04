@@ -1,7 +1,9 @@
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt
+import matplotlib.patches as patches
 import numpy as np
 import csv
+from matplotlib.transforms import Affine2D
 
 def read_data_from_txt_adafruit(filepath):
     # Listen initialisieren
@@ -150,7 +152,7 @@ def read_last_line(file_path):
                 last_row = [value if value == '1-2' else float(value) for value in last_row]
         return last_row
 
-def create_scatterplot(load_pos_x, load_pos_y, sensor_pos):
+def create_scatterplot2(load_pos_x, load_pos_y, sensor_pos):
     sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
 
     # Scatterplot erstellen
@@ -176,8 +178,62 @@ def create_scatterplot(load_pos_x, load_pos_y, sensor_pos):
     plt.axvline(0, color='gray', linewidth=0.5)
     plt.show()
 
+
+
+def create_scatterplot(load_pos_x, load_pos_y, sensor_pos, rectangle_width=50, rectangle_height=20, rotation_angles=None):
+    sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
+
+
+
+    # Falls keine Rotationswinkel angegeben sind, setzen wir sie alle auf 0 Grad
+    if rotation_angles is None:
+        rotation_angles = [-45, 90, 45, 0, 0, 45, 90, -45]
+
+    # Scatterplot erstellen
+    plt.figure(figsize=(8, 8))  # Größere Figur für bessere Sichtbarkeit
+
+    # Hintergrundfläche einfärben
+    plt.fill([-400, 400, 400, -400], [-400, -400, 400, 400], color='yellow', alpha=0.4)
+
+    # Lastpunkte (blaue Punkte) darstellen
+    plt.scatter(load_pos_x, load_pos_y, c='blue', alpha=0.5, label='Load Points')
+
+    # Sensorpositionen als rotierte Rechtecke darstellen
+    for (sx, sy), angle in zip(sensor_pos, rotation_angles):
+        # Affine2D-Transformation zur Rotation um den Mittelpunkt
+        trans = Affine2D().rotate_deg_around(sx, sy, angle) + plt.gca().transData
+
+        # Rechteck hinzufügen, wobei `angle` die Rotation um den Mittelpunkt des Rechtecks angibt
+        rect = patches.Rectangle(
+            (sx - rectangle_width / 2, sy - rectangle_height / 2),  # Linke untere Ecke berechnen
+            rectangle_width,
+            rectangle_height,
+            edgecolor='red',
+            facecolor='red',
+            alpha=0.6,
+            transform=trans  # Transformation anwenden
+        )
+        plt.gca().add_patch(rect)  # Rechteck zum aktuellen Plot hinzufügen
+        plt.text(sx, sy, f"Sensor {sensor_pos.index((sx, sy)) + 1}",
+                 fontsize=11, fontweight='bold', ha='center', color='black',
+                 transform=plt.gca().transData + Affine2D().translate(0, 30),
+                 bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9)
+                 )
+
+    # Achsenlimits und Beschriftungen
+    plt.xlim(-500, 500)
+    plt.ylim(-500, 500)
+    plt.xlabel('X-Achse [mm]')
+    plt.ylabel('Y-Achse [mm]')
+    plt.title('Lastpunkte (Blau), Sensorpatches (Rot)')
+    plt.grid(True)
+    plt.axhline(0, color='gray', linewidth=0.6)
+    plt.axvline(0, color='gray', linewidth=0.6)
+    plt.legend()
+    plt.show()
+
 # Funktion zum Erstellen des Scatterplots
-def create_scatterplot_testing(load_pos_x, load_pos_x_pred, load_pos_y, load_pos_y_pred, sensor_pos):
+def create_scatterplot_testing2(load_pos_x, load_pos_x_pred, load_pos_y, load_pos_y_pred, sensor_pos):
     sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
 
     # Scatterplot erstellen
@@ -209,4 +265,64 @@ def create_scatterplot_testing(load_pos_x, load_pos_x_pred, load_pos_y, load_pos
     plt.grid(True)
     plt.axhline(0, color='gray', linewidth=0.5)
     plt.axvline(0, color='gray', linewidth=0.5)
+    plt.show()
+
+# Funktion zum Erstellen des Scatterplots
+def create_scatterplot_testing(load_pos_x, load_pos_x_pred, load_pos_y, load_pos_y_pred, sensor_pos, rectangle_width=50, rectangle_height=20, rotation_angles=None):
+    sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
+
+    # Falls keine Rotationswinkel angegeben sind, setzen wir sie alle auf 0 Grad
+    if rotation_angles is None:
+        rotation_angles = [0] * len(sensor_pos)  # Setze Standardrotationen, falls keine angegeben sind
+
+    # Scatterplot erstellen
+    plt.figure(figsize=(8, 8))  # Größere Figur für bessere Sichtbarkeit
+
+    # Hintergrundfläche einfärben
+    plt.fill([-400, 400, 400, -400], [-400, -400, 400, 400], color='yellow', alpha=0.4)
+
+    # Scatterplots mit Labels hinzufügen für die Lastpunkte
+    for i, (x, y) in enumerate(zip(load_pos_x, load_pos_y), start=1):
+        plt.scatter(x, y, c='blue', alpha=0.8)
+        plt.text(x, y, str(i) + "  ", fontsize=7, ha='right', va='bottom', bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9))
+
+    # Scatterplots für die vorhergesagten Lastpunkte
+    for i, (x, y) in enumerate(zip(load_pos_x_pred, load_pos_y_pred), start=1):
+        plt.scatter(x, y, c='green', alpha=0.5)
+        plt.text(x, y, str(i) + "  ", fontsize=7, ha='right', va='bottom', bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9))
+
+    # Sensorpositionen als rotierte Rechtecke darstellen
+    for (sx, sy), angle in zip(sensor_pos, rotation_angles):
+        # Affine2D-Transformation zur Rotation um den Mittelpunkt
+        trans = Affine2D().rotate_deg_around(sx, sy, angle) + plt.gca().transData
+
+        # Rechteck hinzufügen
+        rect = patches.Rectangle(
+            (sx - rectangle_width / 2, sy - rectangle_height / 2),  # Linke untere Ecke berechnen
+            rectangle_width,
+            rectangle_height,
+            edgecolor='red',
+            facecolor='red',
+            alpha=0.6,
+            transform=trans  # Transformation anwenden
+        )
+        plt.gca().add_patch(rect)  # Rechteck zum aktuellen Plot hinzufügen
+
+        # Sensorbeschriftungen 30 Pixel über der aktuellen Position anzeigen, mit weißem Hintergrund
+        plt.text(sx, sy, f"Sensor {sensor_pos.index((sx, sy)) + 1}",
+                 fontsize=11, fontweight='bold', ha='center', color='black',
+                 transform=plt.gca().transData + Affine2D().translate(0, 30),
+                 bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9)
+                 )
+
+    # Achsenlimits und Beschriftungen
+    plt.xlim(-500, 500)
+    plt.ylim(-500, 500)
+    plt.xlabel('X-Achse [mm]')
+    plt.ylabel('Y-Achse [mm]')
+    plt.title('Memo-2D-Plot - Lastpunkte (Blau), Vorhergesagte Lastpunkte (Grün), Sensorpatches (Rot)')
+    plt.grid(True)
+    plt.axhline(0, color='gray', linewidth=0.5)
+    plt.axvline(0, color='gray', linewidth=0.5)
+    plt.legend()
     plt.show()
