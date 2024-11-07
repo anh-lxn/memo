@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
     current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # Aktueller Zeitstempel für den Ordnernamen
-    output_dir = f'../../resources/messungen/messung_{current_time}'  # Pfad für den Output-Ordner
+    output_dir = f'../../resources/messungen/messung_pi_07_11'  # Pfad für den Output-Ordner
     os.makedirs(output_dir, exist_ok=True)  # Erstelle den Ordner, falls er noch nicht existiert
 
     # Starte Sensor auslesen
