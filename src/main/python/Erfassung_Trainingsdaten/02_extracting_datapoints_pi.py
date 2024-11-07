@@ -1,7 +1,7 @@
 """
 Dateiname: 02_extracting_datapoints_pi.py
 Autor: Florian Schmidt
-Datum: 30.05.2024
+Datum: 07.11.2024
 
 Beschreibung:
 Diese Datei führt die Verarbeitung von Dehnungsdaten durch. Es werden Daten aus einer Textdatei eingelesen,

@@ -1,72 +1,84 @@
+"""
+Dateiname: 01_reading_sensordata_pi_adafruit.py
+Autor: Florian Schmidt
+Datum: 07.11.2024
+
+Beschreibung:
+Dieses Skript führt ein Auslesen von 8 Sensoren mittels Adafruit ADS1115 AD-Wandlern druch.
+Die Werte werden strukturiert in einer .csv Datei abgelegt.
+"""
+
 # Imports
-import os
-import csv
-from datetime import datetime
-import threading
-import time
-import board
-import busio
-import adafruit_ads1x15.ads1115 as ADS
-from adafruit_ads1x15.analog_in import AnalogIn
+import os                   # Zum Arbeiten mit Verzeichnissen und Dateipfaden
+import csv                  # Zum Schreiben der Sensordaten in eine CSV-Datei
+from datetime import datetime  # Für Zeitstempel und Datumsformatierungen
+import threading            # Zum parallelen Ausführen der Sensordaten-Erfassung
+import time                 # Zum Hinzufügen von Wartezeiten
+import board                # Für die GPIO- und I2C-Steuerung auf dem Raspberry Pi
+import busio                # Für die I2C-Kommunikation
+import adafruit_ads1x15.ads1115 as ADS  # Für die Verwendung des ADS1115 AD-Wandlers
+from adafruit_ads1x15.analog_in import AnalogIn  # Für die Spannungsmessung an ADS1115-Kanälen
 
-# I2C setup
-i2cbus = busio.I2C(board.SCL, board.SDA)
-ads0 = ADS.ADS1115(i2cbus, address=0x48)
-ads1 = ADS.ADS1115(i2cbus, address=0x49)
+# I2C-Setup
+i2cbus = busio.I2C(board.SCL, board.SDA)  # Initialisiert den I2C-Bus mit den SCL- und SDA-Pins
+ads0 = ADS.ADS1115(i2cbus, address=0x48)  # Erstellt ein Objekt für den ADS1115 mit Adresse 0x48
+ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den ADS1115 mit Adresse 0x49
 
-# Set up analog channels
-ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)
-ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)
+# Einrichtung der analogen Kanäle
+ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
+ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
 
 # Variable zum Stoppen des Threads
-stop_event = threading.Event()
+stop_event = threading.Event()  # Stop-Event für die Steuerung des Sensor-Lese-Threads
 
 # Funktion zum Speichern der Daten in eine CSV-Datei
 def save_to_csv(data, output_dir, ids, x, y, F):
+    # Legt den Pfad für die CSV-Datei fest und erstellt die Datei
     output_csv_path = os.path.join(output_dir, f'0{ids}_strain_values_{x}_{y}_{F}.csv')
     with open(output_csv_path, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['Timestamp', 'dt', 'Voltage1', 'Voltage2', 'Voltage3', 'Voltage4', 'Voltage5', 'Voltage6', 'Voltage7', 'Voltage8'])
-        writer.writerows(data)
-    print(f'Daten wurden in {output_csv_path} gespeichert.')
+        writer = csv.writer(file)  # CSV-Schreiber-Objekt erstellen
+        writer.writerow(['Timestamp', 'dt', 'Voltage1', 'Voltage2', 'Voltage3', 'Voltage4', 'Voltage5', 'Voltage6', 'Voltage7', 'Voltage8'])  # Header schreiben
+        writer.writerows(data)  # Alle gesammelten Daten in die Datei schreiben
+    print(f'Daten wurden in {output_csv_path} gespeichert.')  # Rückmeldung an den Benutzer
 
 # Funktion zum kontinuierlichen Auslesen der Sensordaten
 def read_sensors():
-    while not stop_event.is_set():
-        curr_voltages = [ch1.voltage, ch2.voltage, ch3.voltage, ch4.voltage, ch5.voltage, ch6.voltage, ch7.voltage, ch8.voltage]
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        data.append([timestamp, dt] + curr_voltages)
-        time.sleep(dt)
+    while not stop_event.is_set():  # Schleife, solange das Stop-Event nicht gesetzt ist
+        curr_voltages = [ch1.voltage, ch2.voltage, ch3.voltage, ch4.voltage, ch5.voltage, ch6.voltage, ch7.voltage, ch8.voltage]  # Spannungen an den Kanälen auslesen
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Zeitstempel generieren
+        data.append([timestamp, dt] + curr_voltages)  # Zeitstempel und Spannungsdaten zur Datensammlung hinzufügen
+        time.sleep(dt)  # Wartezeit zwischen den Messungen
 
 # Funktion zur Eingabe der Parameter über die Kommandozeile
 def get_user_inputs():
+    # Fragt den Benutzer nach Eingaben zu Messpunkt-ID, Position und Kraft
     ids = int(input("Geben Sie die ID des Lastpunkts ein: "))
     x = int(input("Geben Sie die X-Position ein: "))
     y = int(input("Geben Sie die Y-Position ein: "))
     F = int(input("Geben Sie die Kraft (in Newton) ein: "))
-    return ids, x, y, F
+    return ids, x, y, F  # Gibt die Eingaben zurück
 
 # Hauptprogramm Ausführung
 if __name__ == "__main__":
     # Benutzerparameter abfragen
-    ids, x, y, F = get_user_inputs()
-    dt = 0.25
-    data = []
+    ids, x, y, F = get_user_inputs()  # Benutzereingaben abrufen
+    dt = 0.25  # Zeitintervall für das Lesen der Sensoren
+    data = []  # Liste zum Speichern der Sensordaten
 
     # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
-    current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    output_dir = f'../../resources/messungen/messung_{current_time}'
-    os.makedirs(output_dir, exist_ok=True)
+    current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # Aktueller Zeitstempel für den Ordnernamen
+    output_dir = f'../../resources/messungen/messung_{current_time}'  # Pfad für den Output-Ordner
+    os.makedirs(output_dir, exist_ok=True)  # Erstelle den Ordner, falls er noch nicht existiert
 
     # Starte Sensor auslesen
-    stop_event.clear()
-    thread = threading.Thread(target=read_sensors)
-    thread.start()
+    stop_event.clear()  # Setzt das Stop-Event zurück
+    thread = threading.Thread(target=read_sensors)  # Erstellt einen Thread für das kontinuierliche Auslesen der Sensordaten
+    thread.start()  # Startet den Sensor-Lese-Thread
 
     # Warte auf Benutzereingabe, um das Programm zu beenden
-    input("Drücke 'Enter', um das Programm zu beenden und die Daten zu speichern.")
-    stop_event.set()  # Beende die Schleife
-    thread.join()  # Warte, bis der Thread beendet ist
+    input("Drücke 'Enter', um das Programm zu beenden und die Daten zu speichern.")  # Warten auf Eingabe
+    stop_event.set()  # Stop-Event setzen, um die Schleife im Sensor-Lese-Thread zu beenden
+    thread.join()  # Warten, bis der Thread beendet ist
 
     # Speichere die Daten, wenn das Programm beendet wird
-    save_to_csv(data, output_dir, ids, x, y, F)
+    save_to_csv(data, output_dir, ids, x, y, F)  # Speichert die Daten in der CSV-Datei
