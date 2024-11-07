@@ -21,7 +21,7 @@ from adafruit_ads1x15.analog_in import AnalogIn  # Für die Spannungsmessung an 
 
 # I2C-Setup
 i2cbus = busio.I2C(board.SCL, board.SDA)  # Initialisiert den I2C-Bus mit den SCL- und SDA-Pins
-ads0 = ADS.ADS1115(i2cbus, address=0x48)  # Erstellt ein Objekt für den ADS1115 mit Adresse 0x48
+ads0 = ADS.ADS1115(i2cbus, address=0x4b)  # Erstellt ein Objekt für den ADS1115 mit Adresse 0x48
 ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den ADS1115 mit Adresse 0x49
 
 # Einrichtung der analogen Kanäle
