@@ -34,7 +34,7 @@ stop_event = threading.Event()  # Stop-Event für die Steuerung des Sensor-Lese-
 # Funktion zum Speichern der Daten in eine CSV-Datei
 def save_to_csv(data, output_dir, ids, x, y, F):
     # Legt den Pfad für die CSV-Datei fest und erstellt die Datei
-    output_csv_path = os.path.join(output_dir, f'0{ids}_strain_values_{x}_{y}_{F}.csv')
+    output_csv_path = os.path.join(output_dir, f'{ids:03}_strain_values_{x}_{y}_{F}.csv')
     with open(output_csv_path, mode='w', newline='') as file:
         writer = csv.writer(file)  # CSV-Schreiber-Objekt erstellen
         writer.writerow(['Timestamp', 'dt', 'Voltage1', 'Voltage2', 'Voltage3', 'Voltage4', 'Voltage5', 'Voltage6', 'Voltage7', 'Voltage8'])  # Header schreiben
@@ -54,8 +54,10 @@ def get_user_inputs():
     # Fragt den Benutzer nach Eingaben zu Messpunkt-ID, Position und Kraft
     ids = int(input("Geben Sie die ID des Lastpunkts ein: "))
     x = int(input("Geben Sie die X-Position ein: "))
-    y = int(input("Geben Sie die Y-Position ein: "))
-    F = int(input("Geben Sie die Kraft (in Newton) ein: "))
+    #y = int(input("Geben Sie die Y-Position ein: "))
+    y = -290
+    #F = int(input("Geben Sie die Kraft (in Newton) ein: "))
+    F = 20
     return ids, x, y, F  # Gibt die Eingaben zurück
 
 # Hauptprogramm Ausführung
@@ -67,7 +69,7 @@ if __name__ == "__main__":
 
     # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
     current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # Aktueller Zeitstempel für den Ordnernamen
-    output_dir = f'../../resources/messungen/messung_pi_07_11'  # Pfad für den Output-Ordner
+    output_dir = f'../../resources/messungen/messung_pi_14_11'  # Pfad für den Output-Ordner
     os.makedirs(output_dir, exist_ok=True)  # Erstelle den Ordner, falls er noch nicht existiert
 
     # Starte Sensor auslesen
