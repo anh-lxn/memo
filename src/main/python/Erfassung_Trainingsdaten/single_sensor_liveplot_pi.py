@@ -14,7 +14,7 @@ ads = ADS.ADS1115(i2cbus, address=0x49)   # Erstellt ein Objekt für das ADS1115
 ads.gain = 1  # Setzt den Verstärkungsfaktor auf 1, um den Messbereich des ADS1115 festzulegen
 
 # Kanal 3 als Eingangsquelle festlegen
-ch3 = AnalogIn(ads, ADS.P3)  # Erstellt ein Objekt für den Kanal 3 des ADS1115, um die Spannung an diesem Eingang zu messen
+ch3 = AnalogIn(ads, ADS.P1)  # Erstellt ein Objekt für den Kanal 3 des ADS1115, um die Spannung an diesem Eingang zu messen
 
 # Plot Setup
 fig, ax = plt.subplots()  # Erstellt ein neues Diagramm und Achsenobjekt für die grafische Darstellung

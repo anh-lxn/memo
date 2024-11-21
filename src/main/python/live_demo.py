@@ -5,13 +5,36 @@ import numpy as np
 import pandas as pd
 import torch
 import helper_fns_ki_model as h_fn_ki
+import board                # Für die GPIO- und I2C-Steuerung auf dem Raspberry Pi
+import busio                # Für die I2C-Kommunikation
+import adafruit_ads1x15.ads1115 as ADS  # Für die Verwendung des ADS1115 AD-Wandlers
+from adafruit_ads1x15.analog_in import AnalogIn  # Für die Spannungsmessung an ADS1115-Kanälen
+
+# I2C-Setup
+i2cbus = busio.I2C(board.SCL, board.SDA)  # Initialisiert den I2C-Bus mit den SCL- und SDA-Pins
+ads0 = ADS.ADS1115(i2cbus, address=0x4b)  # Erstellt ein Objekt für den ADS1115 mit Adresse 0x48
+ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den ADS1115 mit Adresse 0x49
+
+# Einrichtung der analogen Kanäle
+ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
+ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-315, 315), (0, 315), (315, 315), (-315, 0), (315, 0), (-315, -315), (0, -315), (315, -315)]
-model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_30_05_2024_15-52-32.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_04_11_2024_09-50-27.pth')
+
 # Funktion zum Berechnen der Lastkoordinate aus
 def calc_loadpoint(model):
     # 1. Auslesen der Sensorwerte über i2C
+    sensor_01 = ch1.voltage
+    sensor_02 = ch2.voltage
+    sensor_03 = ch3.voltage
+    sensor_04 = ch4.voltage
+    sensor_05 = ch5.voltage
+    sensor_06 = ch6.voltage
+    sensor_07 = ch7.voltage
+    sensor_08 = ch8.voltage
+    """
     sensor_01 = np.random.uniform(0,1)
     sensor_02 = np.random.uniform(0,1)
     sensor_03 = np.random.uniform(0, 1)
@@ -20,6 +43,7 @@ def calc_loadpoint(model):
     sensor_06 = np.random.uniform(0, 1)
     sensor_07 = np.random.uniform(0, 1)
     sensor_08 = np.random.uniform(0, 1)
+    """
 
     # Werte in einer Liste speichern
     sensor_values = [sensor_01, sensor_02, sensor_03, sensor_04, sensor_05, sensor_06, sensor_07, sensor_08]
@@ -86,8 +110,8 @@ def create_live_scatterplot():
     ax.set_aspect('equal', adjustable='box')  # Verhältnisse der Achsen beibehalten
 
     # Set the figure to full screen
-    mng = plt.get_current_fig_manager()
-    mng.full_screen_toggle()
+    #mng = plt.get_current_fig_manager()
+    #mng.full_screen_toggle()
 
     # Kreise initialisieren für Plot des Lastpunktes
     circle0 = plt.Circle((0, 0), 45, color='blue', fill=True, linewidth=1, alpha=0.1)

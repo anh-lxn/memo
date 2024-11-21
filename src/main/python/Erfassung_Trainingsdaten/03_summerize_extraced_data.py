@@ -27,8 +27,8 @@ for datei_name in os.listdir(ordner_pfad):
         # CSV-Datei einlesen
         df = pd.read_csv(datei_pfad)
 
-        # Prüfen, ob die letzte Zeile mit '1-2' beginnt
-        if df.iloc[-1, 0].startswith("1-2"):
+        # Prüfen, ob die vorletzte Zeile mit '2' beginnt
+        if df.iloc[-2, 0].startswith("2"):
             # Die ersten drei Ziffern des Dateinamens extrahieren
             erste_drei_ziffern = datei_name[:3]
 
@@ -39,8 +39,8 @@ for datei_name in os.listdir(ordner_pfad):
                 alle_zeilen.append(neue_kopfzeile)
                 kopfzeile_gesetzt = True
 
-            # Die letzte Zeile als Liste umwandeln und die ersten drei Ziffern hinzufügen
-            zeile = [erste_drei_ziffern] + df.iloc[-1, 1:].tolist()
+            # Die vorletzte Zeile als Liste umwandeln und die ersten drei Ziffern hinzufügen
+            zeile = [erste_drei_ziffern] + df.iloc[-2, 1:].tolist()
             alle_zeilen.append(zeile)
 
 # Alle Zeilen in eine neue CSV-Datei schreiben
