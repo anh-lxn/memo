@@ -8,7 +8,7 @@ import matplotlib.animation as animation  # Importiert die Animationsfunktion vo
 
 # I2C-Setup
 i2cbus = busio.I2C(board.SCL, board.SDA)  # Initialisiert die I2C-Schnittstelle mit den SCL- und SDA-Pins des Boards
-ads = ADS.ADS1115(i2cbus, address=0x49)   # Erstellt ein Objekt für das ADS1115-Modul mit der I2C-Adresse 0x49
+ads = ADS.ADS1115(i2cbus, address=0x4b)   # Erstellt ein Objekt für das ADS1115-Modul mit der I2C-Adresse 0x49
 
 # Gain (Verstärkung) einstellen
 ads.gain = 1  # Setzt den Verstärkungsfaktor auf 1, um den Messbereich des ADS1115 festzulegen
@@ -19,7 +19,8 @@ ch3 = AnalogIn(ads, ADS.P1)  # Erstellt ein Objekt für den Kanal 3 des ADS1115,
 # Plot Setup
 fig, ax = plt.subplots()  # Erstellt ein neues Diagramm und Achsenobjekt für die grafische Darstellung
 xs = []  # Leere Liste zum Speichern der Zeitwerte
-ys = []  # Leere Liste zum Speichern der Spannungswerte
+ys = []  # Leere Liste zum Speichern der Spannungswertesingle_sensor_liveplot_pi.py
+
 
 def animate(i, xs, ys):
     # Spannung an Kanal 3 auslesen
@@ -40,7 +41,7 @@ def animate(i, xs, ys):
     plt.xlabel('Zeit (s)')  # Beschriftet die x-Achse
     plt.ylabel('Spannung (V)')  # Beschriftet die y-Achse
     plt.title('Live Plot der Spannung an Kanal 3')  # Setzt den Titel für das Diagramm
-    plt.ylim([0, 4])  # Legt den y-Achsenbereich auf 0 bis 4 Volt fest
+    plt.ylim([-1, 1])  # Legt den y-Achsenbereich auf 0 bis 4 Volt fest
 
 # Startet die Animation, die alle 50 ms die Funktion 'animate' aufruft
 ani = animation.FuncAnimation(fig, animate, fargs=(xs, ys), interval=50)

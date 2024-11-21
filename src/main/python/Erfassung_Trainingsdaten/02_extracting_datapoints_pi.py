@@ -16,35 +16,55 @@ import matplotlib as plt
 sys.path.append(os.path.abspath('../'))
 import helper_fns_data as h_fns  # Import der Hilfsfunktionen für die Datenverarbeitung
 
-# Für schnelleres extracting
-"""
+# Funktion, die Benutzereingaben für die Start-ID, Y-Position, Kraft und Anzahl der Dateien erhält
+def get_user_inputs():
+    # Listen zur Speicherung der ID und der X-Werte
+    ids_list = []  # Liste zur Speicherung der IDs, die mit führenden Nullen formatiert werden
+    x_value_list = []  # Liste zur Speicherung der X-Positionen
+    x_start = -290  # Startwert für die X-Positionen
+    anz_dateien = 4  # Anzahl der Dateien, die verarbeitet werden sollen
+    F = 20  # Konstante Kraft, die für alle Dateien gilt
 
-for i in range(0, 6):
-	id = f"0{i+0}"
-	x = 58*i
-"""
+    # Benutzerabfrage zur Eingabe der Start-ID
+    id_start = int(input("Geben Sie die Start-ID ein: "))  # Start-ID wird als Integer eingegeben
+    # Benutzerabfrage zur Eingabe der Y-Position
+    y = int(input("Geben Sie die Y-Position ein: "))  # Y-Position wird als Integer eingegeben
+    
+    # Schleife zur Berechnung und Speicherung der IDs und X-Werte für jede Datei
+    for i in range(anz_dateien):
+        # Berechne die aktuelle ID und formatiere sie mit führenden Nullen (z.B. "001", "002", ...)
+        formatted_id = str(id_start + i).zfill(3)  # zfill(3) sorgt dafür, dass die ID immer 3-stellig ist
+        ids_list.append(formatted_id)  # Füge die formatierte ID zur IDs-Liste hinzu
 
-# Definieren von ID, x- und y-Position, Kraft und Zeitpunkten -> definiert, welche Datei ausgelesen wird!
-id = "000"
-x = 0
-y = 0
-F = 20
+        # Berechne die X-Position für diese Datei und füge sie zur X-Wert-Liste hinzu
+        x_value = x_start + i * 58  # X-Wert wird basierend auf der Schleifenvariable berechnet
+        x_value_list.append(x_value)  # Füge den berechneten X-Wert zur Liste hinzu
 
-# Erstellen des Dateipfads basierend auf den oben definierten Parametern
-filepath = f'../../resources/messungen/messung_pi_14_11/{id:3}_strain_values_{x}_{y}_{F}.csv'
+        # Ausgabe der aktuellen ID (dient der Anzeige des aktuellen Fortschritts)
+        print(formatted_id)  # Zeigt die formatierte ID im Terminal an
 
-# Einlesen der Dehnungsdaten aus der Textdatei
-dtlist, strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7 = h_fns.read_data_from_txt_adafruit(filepath)
+    # Rückgabe der Listen und der anderen Parameter (y, F und die Anzahl der Dateien)
+    return ids_list, x_value_list, y, F, anz_dateien  # Gibt die Listen und Werte zurück
 
-# Daten in eine Liste packen für eine einfachere Verarbeitung
-strain_data = [strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7]
-dt = dtlist[0]
 
-# Plotten der ungefilterten Dehnungsdaten
-h_fns.plot_strain_data(strain_data, dt)  # Ungefilterte Daten plotten
 
-timepoints = [2, float(input("Geben Sie die zweite Zeit ein: "))]  # Beispielsweise Werte bei Sekunde 4 und 12 abspeichern
+# Hauptprogramm Ausführung
+if __name__ == "__main__":
+	ids_list, x_value_list, y, F, anz_dateien = get_user_inputs()  # Benutzereingaben abrufen
+	for i in range(anz_dateien):
+		# Erstellen des Dateipfads basierend auf den oben definierten Parametern
+		filepath = f'../../resources/messungen/messung_pi_21_11/{ids_list[i]:3}_strain_values_{x_value_list[i]}_{y}_{F}.csv'
 
-# Speichern der ungefilterten Dehnungsdaten in einer CSV-Datei
-output_csv_path = f'../../resources/messungen/auswertung/14_11/{id:3}_strain_values_{x}_{y}_{F}_extracted.csv'
-h_fns.save_strain_values_to_csv(timepoints, strain_data, output_csv_path, dt, x, y, F)
+		# Einlesen der Dehnungsdaten aus der Textdatei
+		dtlist, strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7 = h_fns.read_data_from_txt_adafruit(filepath)
+
+		# Daten in eine Liste packen für eine einfachere Verarbeitung
+		strain_data = [strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7]
+		dt = dtlist[0]
+
+		# Plotten der ungefilterten Dehnungsdaten
+		timepoints = h_fns.plot_strain_data(strain_data, dt)  # Ungefilterte Daten plotten [0, eingebener_wert]
+
+		# Speichern der ungefilterten Dehnungsdaten in einer CSV-Datei
+		output_csv_path = f'../../resources/messungen/auswertung/21_11/{ids_list[i]:3}_strain_values_{x_value_list[i]}_{y}_{F}_extracted.csv'
+		h_fns.save_strain_values_to_csv(timepoints, strain_data, output_csv_path, dt, x_value_list[i], y, F)

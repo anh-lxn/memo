@@ -4,6 +4,7 @@ import matplotlib.patches as patches
 import numpy as np
 import csv
 from matplotlib.transforms import Affine2D
+from matplotlib.widgets import TextBox
 
 def read_data_from_txt_adafruit(filepath):
     # Listen initialisieren
@@ -60,33 +61,58 @@ def read_data_from_txt(filepath):
 
     return strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7
 
+
 def plot_strain_data(strain_data, dt):
     """
-    Plot the strain data with x-values starting from 0 and incrementing by 0.05.
+    Plot the strain data with x-values starting from 0 and incrementing by dt.
 
     Parameters:
     strain_data (list of lists): A list containing 8 lists of strain values.
+    dt (float): Time step for the x-axis values.
     """
     # Anzahl der Datenpunkte
     num_points = len(strain_data[0])
 
     # Generiere die x-Werte
     x_values = [i * dt for i in range(num_points)]
+
     # Erstelle den Plot
-    plt.figure(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(12, 9))
 
     # Plot für jeden strain
     for i, strain in enumerate(strain_data, start=0):
-        plt.plot(x_values, strain, label=f'Strain {i}')
+        ax.plot(x_values, strain, label=f'Strain {i}')
 
     # Diagrammeinstellungen
-    plt.xlabel('Zeit (s)')
-    plt.ylabel('Dehnung (Strain)')
-    plt.title('Dehnungswerte der Sensoren über die Zeit')
-    plt.legend()
-    plt.grid(True)
-    # Zeige den Plot an
+    ax.set_xlabel('Zeit (s)')
+    ax.set_ylabel('Dehnung (Strain)')
+    ax.set_title('Dehnungswerte der Sensoren über die Zeit')
+    ax.legend()
+    ax.grid(True)
+    
+    # Füge eine TextBox hinzu, um Eingabe zu ermöglichen
+    axbox = plt.axes([0.5, 0.02, 0.3, 0.03])  # Position der TextBox (normalisierte Koordinaten)
+    text_box = TextBox(axbox, 'Geben Sie die Zeit ein bei der gemessen werden soll und drücken Sie Enter:', initial='')
+
+    # Variable zum Speichern des eingegebenen Werts
+    entered_value = None
+
+    # Funktion, die aufgerufen wird, wenn der Benutzer 'Enter' drückt
+    def on_submit(value):
+        nonlocal entered_value
+        entered_value = value
+        print(f"Eingegebene Zeit: {entered_value}")
+        plt.close()  # Schließt das Plot-Fenster, nachdem 'Enter' gedrückt wurde
+
+    # Registriere das 'Enter' Ereignis
+    text_box.on_submit(on_submit)
+
+    # Zeige das Plot an und halte das Fenster offen
     plt.show()
+
+    # Gebe den eingegebenen Wert zurück (z. B. als float)
+    return [0, float(entered_value)] if entered_value else [0, None]
+
 
 def butter_lowpass_filter(data, cutoff, fs, order=5):
     print(data)

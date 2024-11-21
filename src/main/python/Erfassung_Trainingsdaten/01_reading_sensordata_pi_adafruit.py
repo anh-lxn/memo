@@ -51,36 +51,56 @@ def read_sensors():
 
 # Funktion zur Eingabe der Parameter über die Kommandozeile
 def get_user_inputs():
-    # Fragt den Benutzer nach Eingaben zu Messpunkt-ID, Position und Kraft
-    ids = int(input("Geben Sie die ID des Lastpunkts ein: "))
-    x = int(input("Geben Sie die X-Position ein: "))
-    #y = int(input("Geben Sie die Y-Position ein: "))
-    y = -290
-    #F = int(input("Geben Sie die Kraft (in Newton) ein: "))
-    F = 20
-    return ids, x, y, F  # Gibt die Eingaben zurück
+    # Definiere feste Werte
+    F = 20  # Kraft
+    x_start = -290  # Startwert für die X-Position
+    x_value_list = []  # Liste für X-Werte
+    ids_list = []  # Liste für IDs
+
+    # Eingabe der Start-ID und der Y-Position
+    id_start = int(input("Geben Sie die Start-ID ein: "))
+    y = int(input("Geben Sie die Y-Position ein: "))
+
+    # Anzahl der Messpunkte (eine Reihe mit y=const.)
+    anz_messwerte = 11  
+
+    # Schleife, um IDs und X-Werte hinzuzufügen
+    for i in range(anz_messwerte):
+        # Füge die aktuelle ID zur Liste hinzu (wird bei jedem Schritt um 1 erhöht)
+        ids_list.append(id_start + i)
+
+        # Berechne den X-Wert und füge ihn zur Liste hinzu
+        x_value = x_start + i * 58
+        x_value_list.append(x_value)
+
+    return ids_list, x_value_list, y, F, anz_messwerte  # Gibt die Listen und Werte zurück
+
 
 # Hauptprogramm Ausführung
 if __name__ == "__main__":
     # Benutzerparameter abfragen
-    ids, x, y, F = get_user_inputs()  # Benutzereingaben abrufen
+    ids_list, x_value_list, y, F, anz_messwerte = get_user_inputs()  # Benutzereingaben abrufen
     dt = 0.25  # Zeitintervall für das Lesen der Sensoren
     data = []  # Liste zum Speichern der Sensordaten
 
     # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
     current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # Aktueller Zeitstempel für den Ordnernamen
-    output_dir = f'../../resources/messungen/messung_pi_14_11'  # Pfad für den Output-Ordner
+    output_dir = f'../../resources/messungen/messung_pi_21_11'  # Pfad für den Output-Ordner
     os.makedirs(output_dir, exist_ok=True)  # Erstelle den Ordner, falls er noch nicht existiert
 
-    # Starte Sensor auslesen
-    stop_event.clear()  # Setzt das Stop-Event zurück
-    thread = threading.Thread(target=read_sensors)  # Erstellt einen Thread für das kontinuierliche Auslesen der Sensordaten
-    thread.start()  # Startet den Sensor-Lese-Thread
+    for i in range(anz_messwerte): #Schleife zur Messung von einer Reihe (11 Messwerte)
+        # Starte Sensor auslesen
+        stop_event.clear()  # Setzt das Stop-Event zurück
+        thread = threading.Thread(target=read_sensors)  # Erstellt einen Thread für das kontinuierliche Auslesen der Sensordaten
+        thread.start()  # Startet den Sensor-Lese-Thread
+        
+        #Gibt die aktuellen x, y, und ids aus
+        print(f"X: {x_value_list[i]}, Y: {y}, ID: {ids_list[i]}, F: {F}")
 
-    # Warte auf Benutzereingabe, um das Programm zu beenden
-    input("Drücke 'Enter', um das Programm zu beenden und die Daten zu speichern.")  # Warten auf Eingabe
-    stop_event.set()  # Stop-Event setzen, um die Schleife im Sensor-Lese-Thread zu beenden
-    thread.join()  # Warten, bis der Thread beendet ist
+        # Warte auf Benutzereingabe, um das Programm zu beenden
+        input("Drücke 'Enter', um die Daten zu speichern.")  # Warten auf Eingabe
+        stop_event.set()  # Stop-Event setzen, um die Schleife im Sensor-Lese-Thread zu beenden
+        thread.join()  # Warten, bis der Thread beendet ist
 
-    # Speichere die Daten, wenn das Programm beendet wird
-    save_to_csv(data, output_dir, ids, x, y, F)  # Speichert die Daten in der CSV-Datei
+        # Speichere die Daten, wenn das Programm beendet wird
+        save_to_csv(data, output_dir, ids_list[i], x_value_list[i], y, F)  # Speichert die Daten in der CSV-Datei

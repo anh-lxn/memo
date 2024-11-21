@@ -4,6 +4,7 @@ import matplotlib.animation as animation
 import numpy as np
 import pandas as pd
 import torch
+import time
 import helper_fns_ki_model as h_fn_ki
 import board                # Für die GPIO- und I2C-Steuerung auf dem Raspberry Pi
 import busio                # Für die I2C-Kommunikation
@@ -21,7 +22,7 @@ ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ad
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-315, 315), (0, 315), (315, 315), (-315, 0), (315, 0), (-315, -315), (0, -315), (315, -315)]
-model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_04_11_2024_09-50-27.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_21_11_2024_13-30-17.pth')
 
 # Funktion zum Berechnen der Lastkoordinate aus
 def calc_loadpoint(model):
@@ -79,6 +80,21 @@ def calc_loadpoint(model):
 
     return  x_value_pred[0], y_value_pred[0]
 
+def create_live_scatterplot_text():
+    try:
+        while True:
+            # Berechne die Werte für load_pos_x und load_pos_y
+            load_pos_x, load_pos_y = calc_loadpoint(model)
+            
+            # Gib die Werte im Terminal aus
+            print(f"Load Position X: {load_pos_x}, Load Position Y: {load_pos_y}")
+            
+            # Warte eine Sekunde, bevor die Werte erneut ausgegeben werden
+            time.sleep(0.2)
+    
+    except KeyboardInterrupt:
+        print("\nProgramm wurde beendet.")
+
 
 def create_live_scatterplot():
     sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
@@ -121,7 +137,7 @@ def create_live_scatterplot():
     ax.add_patch(circle0)
     ax.add_patch(circle)
     ax.add_patch(circle2)
-
+    
     # Funktion zum Updaten des Plots zur Liverealisation
     def update(frame):
         # Aufruf der Funktion zum Berechnen der Lastkoordinaten
@@ -140,5 +156,6 @@ def create_live_scatterplot():
     ani = animation.FuncAnimation(fig, update, frames=None, interval=250, blit=True)
 
     plt.show()
+
 
 create_live_scatterplot()

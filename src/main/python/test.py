@@ -12,4 +12,29 @@ ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den
 ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
 ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
 
-print(ch1.voltage)
+
+F = 20  # Kraft
+x_start = -290  # Startwert für die X-Position
+x_value_list = []  # Liste für X-Werte
+ids_list = []  # Liste für IDs
+
+# Eingabe der Start-ID und der Y-Position
+id_start = int(input("Geben Sie die Start-ID ein: "))
+y = int(input("Geben Sie die Y-Position ein: "))
+
+# Anzahl der Messpunkte (z.B. 2 Messpunkte oder mehr)
+num_points = 5  # Beispiel: 10 Messpunkte
+
+# Schleife, um IDs und X-Werte hinzuzufügen
+for i in range(num_points):
+	# Füge die aktuelle ID zur Liste hinzu (wird bei jedem Schritt um 1 erhöht)
+	ids_list.append(id_start + i)
+
+	# Berechne den X-Wert und füge ihn zur Liste hinzu
+	x_value = x_start + i * 58
+	x_value_list.append(x_value)
+
+print("IDs: ", ids_list)
+print("X-Werte: ", x_value_list)
+print("Y-Position: ", y)
+print("Kraft (N): ", F)
