@@ -67,9 +67,9 @@ def animate(i, xs, ys_ch1, ys_ch2, ys_ch3, ys_ch4, ys_ch5, ys_ch6, ys_ch7, ys_ch
 
     # Plot aktualisieren
     ax.clear()  # Löscht den aktuellen Inhalt des Diagramms
-    ax.plot(xs, ys_ch1, label="Strain 1 : R4")  # Plottet die Werte für Kanal 1
+    ax.plot(xs, ys_ch1, label="Strain 1 : R2")  # Plottet die Werte für Kanal 1
     ax.plot(xs, ys_ch2, label="Strain 2 : R3")  # Plottet die Werte für Kanal 2
-    ax.plot(xs, ys_ch3, label="Strain 3 : R2")  # Plottet die Werte für Kanal 3
+    ax.plot(xs, ys_ch3, label="Strain 3 : R4")  # Plottet die Werte für Kanal 3
     ax.plot(xs, ys_ch4, label="Strain 4 : R1")  # Plottet die Werte für Kanal 4
     ax.plot(xs, ys_ch5, label="Strain 5 : R8")  # Plottet die Werte für Kanal 5
     ax.plot(xs, ys_ch6, label="Strain 6 : R7")  # Plottet die Werte für Kanal 6

@@ -53,16 +53,17 @@ def read_sensors():
 def get_user_inputs():
     # Definiere feste Werte
     F = 20  # Kraft
-    x_start = -290  # Startwert für die X-Position
-    x_value_list = []  # Liste für X-Werte
+    y_start = 290  # Startwert für die Y-Position
+    y_value_list = []  # Liste für Y-Werte
     ids_list = []  # Liste für IDs
 
     # Eingabe der Start-ID und der Y-Position
     id_start = int(input("Geben Sie die Start-ID ein: "))
-    y = int(input("Geben Sie die Y-Position ein: "))
+    x = int(input("Geben Sie die X-Position ein: "))
 
     # Anzahl der Messpunkte (eine Reihe mit y=const.)
     anz_messwerte = 11  
+    abstand = -58
 
     # Schleife, um IDs und X-Werte hinzuzufügen
     for i in range(anz_messwerte):
@@ -70,32 +71,33 @@ def get_user_inputs():
         ids_list.append(id_start + i)
 
         # Berechne den X-Wert und füge ihn zur Liste hinzu
-        x_value = x_start + i * 58
-        x_value_list.append(x_value)
+        y_value = y_start + i * abstand
+        y_value_list.append(y_value)
 
-    return ids_list, x_value_list, y, F, anz_messwerte  # Gibt die Listen und Werte zurück
+    return ids_list, y_value_list, x, F, anz_messwerte  # Gibt die Listen und Werte zurück
 
 
 # Hauptprogramm Ausführung
 if __name__ == "__main__":
     # Benutzerparameter abfragen
-    ids_list, x_value_list, y, F, anz_messwerte = get_user_inputs()  # Benutzereingaben abrufen
+    ids_list, y_value_list, x, F, anz_messwerte = get_user_inputs()  # Benutzereingaben abrufen
     dt = 0.25  # Zeitintervall für das Lesen der Sensoren
-    data = []  # Liste zum Speichern der Sensordaten
 
     # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
     current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # Aktueller Zeitstempel für den Ordnernamen
-    output_dir = f'../../resources/messungen/messung_pi_21_11'  # Pfad für den Output-Ordner
+    output_dir = f'../../resources/messungen/messung_pi_28_11'  # Pfad für den Output-Ordner
     os.makedirs(output_dir, exist_ok=True)  # Erstelle den Ordner, falls er noch nicht existiert
 
     for i in range(anz_messwerte): #Schleife zur Messung von einer Reihe (11 Messwerte)
+        data = []  # Liste zum Speichern der Sensordaten
+        
         # Starte Sensor auslesen
         stop_event.clear()  # Setzt das Stop-Event zurück
         thread = threading.Thread(target=read_sensors)  # Erstellt einen Thread für das kontinuierliche Auslesen der Sensordaten
         thread.start()  # Startet den Sensor-Lese-Thread
         
         #Gibt die aktuellen x, y, und ids aus
-        print(f"X: {x_value_list[i]}, Y: {y}, ID: {ids_list[i]}, F: {F}")
+        print(f"X: {x}, Y: {y_value_list[i]}, ID: {ids_list[i]}, F: {F}")
 
         # Warte auf Benutzereingabe, um das Programm zu beenden
         input("Drücke 'Enter', um die Daten zu speichern.")  # Warten auf Eingabe
@@ -103,4 +105,4 @@ if __name__ == "__main__":
         thread.join()  # Warten, bis der Thread beendet ist
 
         # Speichere die Daten, wenn das Programm beendet wird
-        save_to_csv(data, output_dir, ids_list[i], x_value_list[i], y, F)  # Speichert die Daten in der CSV-Datei
+        save_to_csv(data, output_dir, ids_list[i], x, y_value_list[i], F)  # Speichert die Daten in der CSV-Datei

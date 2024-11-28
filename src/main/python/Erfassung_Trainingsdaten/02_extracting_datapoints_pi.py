@@ -20,15 +20,16 @@ import helper_fns_data as h_fns  # Import der Hilfsfunktionen für die Datenvera
 def get_user_inputs():
     # Listen zur Speicherung der ID und der X-Werte
     ids_list = []  # Liste zur Speicherung der IDs, die mit führenden Nullen formatiert werden
-    x_value_list = []  # Liste zur Speicherung der X-Positionen
-    x_start = -290  # Startwert für die X-Positionen
-    anz_dateien = 4  # Anzahl der Dateien, die verarbeitet werden sollen
+    y_value_list = []  # Liste zur Speicherung der X-Positionen
+    y_start = 290  # Startwert für die X-Positionen
+    anz_dateien = 11  # Anzahl der Dateien, die verarbeitet werden sollen
     F = 20  # Konstante Kraft, die für alle Dateien gilt
+    abstand = -58 # Abstand in y-Richtung zwischen zwei Punkten mit x=const.
 
     # Benutzerabfrage zur Eingabe der Start-ID
     id_start = int(input("Geben Sie die Start-ID ein: "))  # Start-ID wird als Integer eingegeben
     # Benutzerabfrage zur Eingabe der Y-Position
-    y = int(input("Geben Sie die Y-Position ein: "))  # Y-Position wird als Integer eingegeben
+    x= int(input("Geben Sie die X-Position ein: "))  # X-Position wird als Integer eingegeben
     
     # Schleife zur Berechnung und Speicherung der IDs und X-Werte für jede Datei
     for i in range(anz_dateien):
@@ -37,23 +38,23 @@ def get_user_inputs():
         ids_list.append(formatted_id)  # Füge die formatierte ID zur IDs-Liste hinzu
 
         # Berechne die X-Position für diese Datei und füge sie zur X-Wert-Liste hinzu
-        x_value = x_start + i * 58  # X-Wert wird basierend auf der Schleifenvariable berechnet
-        x_value_list.append(x_value)  # Füge den berechneten X-Wert zur Liste hinzu
+        y_value = y_start + i * abstand  # Y-Wert wird basierend auf der Schleifenvariable berechnet
+        y_value_list.append(y_value)  # Füge den berechneten X-Wert zur Liste hinzu
 
         # Ausgabe der aktuellen ID (dient der Anzeige des aktuellen Fortschritts)
         print(formatted_id)  # Zeigt die formatierte ID im Terminal an
 
     # Rückgabe der Listen und der anderen Parameter (y, F und die Anzahl der Dateien)
-    return ids_list, x_value_list, y, F, anz_dateien  # Gibt die Listen und Werte zurück
+    return ids_list, x, y_value_list, F, anz_dateien  # Gibt die Listen und Werte zurück
 
 
 
 # Hauptprogramm Ausführung
 if __name__ == "__main__":
-	ids_list, x_value_list, y, F, anz_dateien = get_user_inputs()  # Benutzereingaben abrufen
+	ids_list, x, y_value_list, F, anz_dateien = get_user_inputs()  # Benutzereingaben abrufen
 	for i in range(anz_dateien):
 		# Erstellen des Dateipfads basierend auf den oben definierten Parametern
-		filepath = f'../../resources/messungen/messung_pi_21_11/{ids_list[i]:3}_strain_values_{x_value_list[i]}_{y}_{F}.csv'
+		filepath = f'../../resources/messungen/messung_pi_28_11/{ids_list[i]:3}_strain_values_{x}_{y_value_list[i]}_{F}.csv'
 
 		# Einlesen der Dehnungsdaten aus der Textdatei
 		dtlist, strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7 = h_fns.read_data_from_txt_adafruit(filepath)
@@ -66,5 +67,5 @@ if __name__ == "__main__":
 		timepoints = h_fns.plot_strain_data(strain_data, dt)  # Ungefilterte Daten plotten [0, eingebener_wert]
 
 		# Speichern der ungefilterten Dehnungsdaten in einer CSV-Datei
-		output_csv_path = f'../../resources/messungen/auswertung/21_11/{ids_list[i]:3}_strain_values_{x_value_list[i]}_{y}_{F}_extracted.csv'
-		h_fns.save_strain_values_to_csv(timepoints, strain_data, output_csv_path, dt, x_value_list[i], y, F)
+		output_csv_path = f'../../resources/messungen/auswertung/28_11/{ids_list[i]:3}_strain_values_{x}_{y_value_list[i]}_{F}_extracted.csv'
+		h_fns.save_strain_values_to_csv(timepoints, strain_data, output_csv_path, dt, x, y_value_list[i], F)

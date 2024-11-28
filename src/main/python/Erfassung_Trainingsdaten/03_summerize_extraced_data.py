@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 
 # Ordner mit CSV-Dateien angeben
-ordner_pfad = "../../resources/messungen/auswertung/14_11"  # <-- Passe diesen Pfad an
+ordner_pfad = "../../resources/messungen/auswertung/28_11"  # <-- Passe diesen Pfad an
 
 # Aktuelles Datum und Uhrzeit (ohne Sekunden) als Teil des Dateinamens
 datum_zeit = datetime.now().strftime("%Y-%m-%d_%H-%M")
