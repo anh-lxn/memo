@@ -111,7 +111,8 @@ def plot_strain_data(strain_data, dt):
     plt.show()
 
     # Gebe den eingegebenen Wert zurück (z. B. als float)
-    return [0, float(entered_value)] if entered_value else [0, None]
+    return [0, float(entered_value)] if entered_value else [0, 0.0]
+
 
 
 def butter_lowpass_filter(data, cutoff, fs, order=5):
