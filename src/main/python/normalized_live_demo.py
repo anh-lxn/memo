@@ -26,7 +26,7 @@ model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_28_11_20
 
 # Funktion zum Berechnen der Lastkoordinate aus
 def calc_loadpoint(model):
-    # 1. Auslesen der Sensorwerte über i2C'
+    # 1. Auslesen der Sensorwerte über i2C
     sensor_R2 = ch1.voltage
     sensor_R3 = ch2.voltage
     sensor_R4 = ch3.voltage
@@ -37,23 +37,29 @@ def calc_loadpoint(model):
     sensor_R5 = ch8.voltage
 
     sensor_values = [round(sensor_R2, 3), round(sensor_R3, 3), round(sensor_R4, 3), round(sensor_R1, 3), round(sensor_R8, 3), round(sensor_R7, 3), round(sensor_R6, 3), round(sensor_R5, 3)]
+    
+    # Maximalen Wert in der Liste finden
+    max_value = max(sensor_values)
+
+    # Werte normieren
+    normalized_sensor_values = [value / max_value for value in sensor_values]
 
     # Beispielhafte Eingabewerte für X_curr
-    X_curr = torch.tensor([[sensor_values[0], sensor_values[1],
-                            sensor_values[2], sensor_values[3], 
-                            sensor_values[4], sensor_values[5], 
-                            sensor_values[6], sensor_values[7]]], dtype=torch.float32)
-
+    X_curr = torch.tensor([[normalized_sensor_values[0], normalized_sensor_values[1],
+                            normalized_sensor_values[2], normalized_sensor_values[3], 
+                            normalized_sensor_values[4], normalized_sensor_values[5], 
+                            normalized_sensor_values[6], normalized_sensor_values[7]]], dtype=torch.float32)
+                            
     # Berechnung Vorhersage aus trainiertem KI-Model
     model.eval()  # Setze das Modell in den Auswertungsmodus (deaktiviere Dropout und BatchNorm)
     with torch.no_grad():  # Deaktiviere das Gradienten-Tracking für die Vorhersage
-        y_pred = model(X_curr) # y_pred enthält die vorhergesagten x- und y-Koordinaten des Lastpunktes
+        y_pred = model(X_curr)  # y_pred enthält die vorhergesagten x- und y-Koordinaten des Lastpunktes
 
     # Extrahieren der x- und y-Koordinaten, welche das KI-Modell vorhergesagt hat
-    x_value_pred = y_pred[:,0].numpy()
+    x_value_pred = y_pred[:, 0].numpy()
     y_value_pred = y_pred[:, 1].numpy()
 
-    return  x_value_pred[0], y_value_pred[0]
+    return x_value_pred[0], y_value_pred[0]
 
 def create_live_scatterplot_text():
     try:
