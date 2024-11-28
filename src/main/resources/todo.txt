@@ -1,0 +1,4 @@
+-heatmap kriterium abstand optisch gut machen
+-grid 58 abstand auf plot
+-live plot sensor darstellung ändern und sensornamen ändern
+-live plot strain intensity an jedem sensor, visualisierung als balken

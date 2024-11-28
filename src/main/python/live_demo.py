@@ -22,7 +22,7 @@ ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ad
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-315, 315), (0, 315), (315, 315), (-315, 0), (315, 0), (-315, -315), (0, -315), (315, -315)]
-model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_28_11_2024_13-49-38.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_notnormalized_28_11_2024_17-21-41.pth')
 
 # Funktion zum Berechnen der Lastkoordinate aus
 def calc_loadpoint(model):
@@ -129,7 +129,7 @@ def create_live_scatterplot():
 
         return load_scatter, circle0, circle, circle2
     # interval -> Angabe der Zeit in ms, wie oft Plot aktualisiert werden soll
-    ani = animation.FuncAnimation(fig, update, frames=None, interval=10, blit=True)
+    ani = animation.FuncAnimation(fig, update, frames=None, interval=1, blit=True)
 
     plt.show()
 
