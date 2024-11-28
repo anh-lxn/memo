@@ -105,9 +105,9 @@ def train_model(X_train,X_test,y_train,y_test):
 
     # Definition von Loss- und Optimierungsfunktionen
     loss_fn = nn.MSELoss()  # mean square error
-    optimizer = optim.Adam(model.parameters(), lr=0.00015)
+    optimizer = optim.Adam(model.parameters(), lr=0.00025)
 
-    n_epochs = 70000   # number of epochs to run
+    n_epochs = 20000   # number of epochs to run
 
     # Listen für Training- und Test-Plots
     train_losses = []
@@ -153,12 +153,12 @@ def train_model(X_train,X_test,y_train,y_test):
     save_model(model)
     return model
 
-def save_model(model, path_prefix='../resources/models/model_demonstrator'):
+def save_model(model, path_prefix='../resources/models/model_demonstrator', normalized='notnormalized'):
     # Aktuelles Datum auslesen
     current_date = datetime.datetime.now()
     # Formatierung des Datums & Uhrzeit
     formatted_datetime = current_date.strftime('%d_%m_%Y_%H-%M-%S')
-    filename = f"{path_prefix}_{formatted_datetime}.pth"
+    filename = f"{path_prefix}_{normalized}_{formatted_datetime}.pth"
     torch.save(model.state_dict(), filename)
     print(f"Model saved to {filename}")
 
