@@ -210,11 +210,9 @@ def create_scatterplot2(load_pos_x, load_pos_y, sensor_pos):
 def create_scatterplot(load_pos_x, load_pos_y, sensor_pos, rectangle_width=50, rectangle_height=20, rotation_angles=None):
     sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
 
-
-
     # Falls keine Rotationswinkel angegeben sind, setzen wir sie alle auf 0 Grad
     if rotation_angles is None:
-        rotation_angles = [-45, 90, 45, 0, 0, 45, 90, -45]
+        rotation_angles = [45, 0, -45, 90, 45, 0, -45, 90]
 
     # Scatterplot erstellen
     plt.figure(figsize=(8, 8))  # Größere Figur für bessere Sichtbarkeit
@@ -241,7 +239,7 @@ def create_scatterplot(load_pos_x, load_pos_y, sensor_pos, rectangle_width=50, r
             transform=trans  # Transformation anwenden
         )
         plt.gca().add_patch(rect)  # Rechteck zum aktuellen Plot hinzufügen
-        plt.text(sx, sy, f"Sensor {sensor_pos.index((sx, sy)) + 1}",
+        plt.text(sx, sy, f"Sensor R{sensor_pos.index((sx, sy)) + 1}",
                  fontsize=11, fontweight='bold', ha='center', color='black',
                  transform=plt.gca().transData + Affine2D().translate(0, 30),
                  bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9)

@@ -48,7 +48,7 @@ with open(datei_pfad, mode='r', newline='') as csv_datei:
 strains = [strain_1,strain_2,strain_3,strain_4,strain_5,strain_6,strain_7,strain_8]
 
 # Definition der Sensorpositionen für Plot
-sensor_pos = [(-315, 315), (0, 315), (315, 315), (-315, 0), (315, 0), (-315, -315), (0, -315), (315, -315)]
+sensor_pos = [(-315, -315), (-315, 0), (-315, 315), (0, 315), (315, 315), (315, 0), (315, -315), (0, -315)]
 
 # Positionen der extrahierten Daten visualisieren
 h_fn.create_scatterplot(load_pos_x,load_pos_y,sensor_pos)
