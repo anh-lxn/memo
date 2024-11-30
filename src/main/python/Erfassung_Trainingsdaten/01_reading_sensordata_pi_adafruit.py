@@ -28,6 +28,16 @@ ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den
 ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
 ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
 
+# Sensorzuordnung
+sensor_R2 = ch1.voltage
+sensor_R3 = ch2.voltage
+sensor_R4 = ch3.voltage
+sensor_R1 = ch4.voltage
+sensor_R8 = ch5.voltage
+sensor_R7 = ch6.voltage
+sensor_R6 = ch7.voltage
+sensor_R5 = ch8.voltage
+
 # Variable zum Stoppen des Threads
 stop_event = threading.Event()  # Stop-Event für die Steuerung des Sensor-Lese-Threads
 
@@ -44,7 +54,7 @@ def save_to_csv(data, output_dir, ids, x, y, F):
 # Funktion zum kontinuierlichen Auslesen der Sensordaten
 def read_sensors():
     while not stop_event.is_set():  # Schleife, solange das Stop-Event nicht gesetzt ist
-        curr_voltages = [ch1.voltage, ch2.voltage, ch3.voltage, ch4.voltage, ch5.voltage, ch6.voltage, ch7.voltage, ch8.voltage]  # Spannungen an den Kanälen auslesen
+        curr_voltages = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]  # Spannungen an den Kanälen auslesen
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Zeitstempel generieren
         data.append([timestamp, dt] + curr_voltages)  # Zeitstempel und Spannungsdaten zur Datensammlung hinzufügen
         time.sleep(dt)  # Wartezeit zwischen den Messungen
