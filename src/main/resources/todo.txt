@@ -1,4 +1,4 @@
--heatmap kriterium abstand optisch gut machen
--grid 58 abstand auf plot
--live plot sensor darstellung ändern und sensornamen ändern
--live plot strain intensity an jedem sensor, visualisierung als balken
+- lineare interpolation messwerte 10 N, 15 N nd 20 N
+- KI mit 3. Output trainieren
+- KI optimierung Hyperparameter
+- Messwerte auswerten 02_...
