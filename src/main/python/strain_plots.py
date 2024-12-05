@@ -31,7 +31,7 @@ x = np.array(load_pos_x)
 y = np.array(load_pos_y)
 
 # Variable zur Auswahl des Sensors (Index von 0 bis 7)
-sensor_index = 4  # Ändern Sie diesen Wert, um einen anderen Sensor auszuwählen (0 = Sensor 1, 1 = Sensor 2, etc.)
+sensor_index = 5  # Ändern Sie diesen Wert, um einen anderen Sensor auszuwählen (0 = Sensor 1, 1 = Sensor 2, etc.)
 
 # Daten für den ausgewählten Sensor
 z = np.array(strain_sensors[sensor_index])

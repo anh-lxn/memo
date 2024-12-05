@@ -9,12 +9,25 @@ from matplotlib.transforms import Affine2D
 import matplotlib.patches as patches
 import helper_fns_ki_model as h_fn_ki
 from matplotlib.widgets import Button
+import board                # Für die GPIO- und I2C-Steuerung auf dem Raspberry Pi
+import busio                # Für die I2C-Kommunikation
+import adafruit_ads1x15.ads1115 as ADS  # Für die Verwendung des ADS1115 AD-Wandlers
+from adafruit_ads1x15.analog_in import AnalogIn  # Für die Spannungsmessung an ADS1115-Kanälen
+
+# I2C-Setup
+i2cbus = busio.I2C(board.SCL, board.SDA)  # Initialisiert den I2C-Bus mit den SCL- und SDA-Pins
+ads0 = ADS.ADS1115(i2cbus, address=0x4b)  # Erstellt ein Objekt für den ADS1115 mit Adresse 0x48
+ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den ADS1115 mit Adresse 0x49
+
+# Einrichtung der analogen Kanäle
+ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
+ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-315, -315), (-315, 0), (-315, 315), (0, 315), (315, 315), (315, 0), (315, -315), (0, -315)]
 
 # Model laden
-model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_28_11_2024_13-55-28.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_28_11_2024_13-49-38.pth')
 
 # Plot im Cybepunk-Stil
 plt.style.use("cyberpunk")
@@ -23,7 +36,7 @@ plt.style.use("cyberpunk")
 for param in ['figure.facecolor', 'axes.facecolor', 'savefig.facecolor']:
     plt.rcParams[param] = '#212946'  # blaugrauer Hintergrund
 
-for param in ['text.color', 'axes.labelcolor', 'xtick.color', 'ytick.color']:
+#for param in ['text.color', 'axes.labelcolor', 'xtick.color', 'ytick.color']:
     plt.rcParams[param] = '0.9'  # sehr helles Grau für Text und Achsen
 
 # Funktion zum Berechnen der Lastkoordinate aus
@@ -40,16 +53,26 @@ def calc_loadpoint(model):
         sensor_values (list): Die Sensorwerte.
     """
     
-    # 1. Auslesen der Sensorwerte
-    # sensor_values = [round(sensor_R2, 3), round(sensor_R3, 3), round(sensor_R4, 3), round(sensor_R1, 3), round(sensor_R8, 3), round(sensor_R7, 3), round(sensor_R6, 3), round(sensor_R5, 3)]
-    sensor_values, x_value, y_value = get_sensor_values_by_id(np.random.randint(0, 3))
+    # 1. Auslesen der Sensorwerte über i2C'
+    sensor_R2 = ch1.voltage
+    sensor_R3 = ch2.voltage
+    sensor_R4 = ch3.voltage
+    sensor_R1 = ch4.voltage
+    sensor_R8 = ch5.voltage
+    sensor_R7 = ch6.voltage
+    sensor_R6 = ch7.voltage
+    sensor_R5 = ch8.voltage
+    
+    #sensor_values = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]
+    sensor_values = [round(sensor_R2, 3), round(sensor_R3, 3), round(sensor_R4, 3), round(sensor_R1, 3), round(sensor_R8, 3), round(sensor_R7, 3), round(sensor_R6, 3), round(sensor_R5, 3)]
+    # sensor_values, x_value, y_value = get_sensor_values_by_id(np.random.randint(0, 3))
     
     # Wenn nicht gedrückt wird, übergebe nicht sichtbaren Punkt
     total_sum = 0 
     for spannung in sensor_values:
-        total_sum += spannung
+       total_sum += spannung
     if total_sum > 25:
-        return 1000, 1000, sensor_values
+       return 10000, 10000, sensor_values
     
     # Maximalen Wert in der Liste finden
     max_value = max(sensor_values)
@@ -127,8 +150,8 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
             (sx - rectangle_width / 2, sy - rectangle_height / 2),  # Linke untere Ecke
             rectangle_width,
             rectangle_height,
-            edgecolor='black',
-            facecolor='black',
+            edgecolor='#00bfff',
+            facecolor='#00bfff',
             alpha=0.9,
             transform=trans
         )
@@ -140,8 +163,8 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
             (sx - rectangle_width / 2, sy - rectangle_height / 2),  # Schmale Balkenbreite, direkt über der Sensorposition
             rectangle_width,  # Breite des Balkens
             rectangle_height,   # Anfangshöhe des Balkens
-            edgecolor='#00bfff',
-            facecolor='#00bfff',
+            edgecolor='black',
+            facecolor='black',
             alpha=0.8,
             transform=trans
         )
@@ -201,8 +224,8 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
     #color_bar = fig.colorbar(heatmap)
 
     # Scatterplot für Lastpunkt (blauer Kreis, initial leer)
-    circle = plt.Circle((0, 0), 5, color='black', fill=True, linewidth=1, alpha=1)
-    ax.add_patch(circle)
+    # circle = plt.Circle((0, 0), 5, color='black', fill=True, linewidth=1, alpha=1)
+    # ax.add_patch(circle)
        
     # Update-Funktion für Animation
     def update(frame):
@@ -214,7 +237,7 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
         load_pos_x, load_pos_y, sensor_values = calc_loadpoint(model)
 
         # Sensorwerte zu den zugehörigen Sensoren zuordnen
-        sensor_labels = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']
+        sensor_labels = ['R2', 'R3', 'R4', 'R1', 'R8', 'R7', 'R6', 'R5']
         sensor_value_mapping = dict(zip(sensor_labels, sensor_values))  # Mapping von Bezeichnungen zu Werten
 
         # Maximalwert zur Skalierung der Balkenhöhen
@@ -224,10 +247,20 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
         ]  # Skaliert für Balkenhöhen (0 bis 100)
 
         # Balkenhöhen entsprechend der zugeordneten Sensorwerte aktualisieren
-        for bar, norm_value, (sx, sy), sensor_label in zip(sensor_bars, normalized_sensor_values, sensor_pos, sensor_labels):
-            bar.set_width(norm_value)  # Höhe des Balkens aktualisieren
-            #print(f"Sensor {sensor_label}: {sensor_value_mapping[sensor_label]:.6f}")
-
+        # bar, norm_value, (sx, sy), sensor_label in zip(sensor_bars, normalized_sensor_values, sensor_pos, sensor_labels):
+         #   bar.set_width(norm_value)  # Höhe des Balkens aktualisieren
+            
+        
+        # Manuelle Zuordnung der Balkenhöhen
+        sensor_bars[0].set_width(normalized_sensor_values[3])  # Sensor R1
+        sensor_bars[1].set_width(normalized_sensor_values[0])  # Sensor R2
+        sensor_bars[2].set_width(normalized_sensor_values[1])  # Sensor R3
+        sensor_bars[3].set_width(normalized_sensor_values[2])  # Sensor R4
+        sensor_bars[4].set_width(normalized_sensor_values[7])  # Sensor R5
+        sensor_bars[5].set_width(normalized_sensor_values[6])  # Sensor R6
+        sensor_bars[6].set_width(normalized_sensor_values[5])  # Sensor R7
+        sensor_bars[7].set_width(normalized_sensor_values[4])  # Sensor R8
+        
         # Konsolenausgabe der Koordinaten und Sensorwerte
         print(f"Load Position - X: {load_pos_x:.2f}, Y: {load_pos_y:.2f}")
         print(f"Sensor Values: {sensor_value_mapping}")
@@ -237,14 +270,14 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
             coll.remove()
 
         # Aktualisieren der Heatmap
-        Z = np.sqrt((0.7*(X - load_pos_x))**2 + (0.7*(Y - load_pos_y))**2)  # Z-Wert ist die Distanz vom Ursprung (Kreis)
+        Z = np.sqrt((0.6*(X - load_pos_x))**2 + (0.6*(Y - load_pos_y))**2)  # Z-Wert ist die Distanz vom Ursprung (Kreis)
         heatmap.set_data(Z)
 
         # Aktualisiere die Colorbar, indem die Mappable-Instanz geändert wird
         #color_bar.update_ticks()  # Update die Colorbar-Ticks
 
         # Aktualisiere die Scatterplot (Lastpunkt)
-        circle.set_center((load_pos_x, load_pos_y))
+        #circle.set_center((load_pos_x, load_pos_y))
     
     # Einen Button hinzufügen
     ax_button = plt.axes([0.915, 0.015, 0.075, 0.030])  # Position des Buttons

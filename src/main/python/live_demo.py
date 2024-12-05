@@ -22,7 +22,7 @@ ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ad
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-315, 315), (0, 315), (315, 315), (-315, 0), (315, 0), (-315, -315), (0, -315), (315, -315)]
-model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_notnormalized_28_11_2024_17-21-41.pth')
+model = h_fn_ki.load_model(path='../resources/models/model_demonstrator_28_11_2024_13-49-38.pth')
 
 # Funktion zum Berechnen der Lastkoordinate aus
 def calc_loadpoint(model):
@@ -38,11 +38,23 @@ def calc_loadpoint(model):
 
     sensor_values = [round(sensor_R2, 3), round(sensor_R3, 3), round(sensor_R4, 3), round(sensor_R1, 3), round(sensor_R8, 3), round(sensor_R7, 3), round(sensor_R6, 3), round(sensor_R5, 3)]
 
+    # Maximalen Wert in der Liste finden
+    max_value = max(sensor_values)
+
+    # Werte normieren
+    normalized_sensor_values = [value / max_value for value in sensor_values]
+
     # Beispielhafte Eingabewerte für X_curr
-    X_curr = torch.tensor([[sensor_values[0], sensor_values[1],
-                            sensor_values[2], sensor_values[3], 
-                            sensor_values[4], sensor_values[5], 
-                            sensor_values[6], sensor_values[7]]], dtype=torch.float32)
+    X_curr = torch.tensor([[normalized_sensor_values[0], normalized_sensor_values[1],
+                            normalized_sensor_values[2], normalized_sensor_values[3], 
+                            normalized_sensor_values[4], normalized_sensor_values[5], 
+                            normalized_sensor_values[6], normalized_sensor_values[7]]], dtype=torch.float32)
+    
+    # Beispielhafte Eingabewerte für X_curr
+    #X_curr = torch.tensor([[sensor_values[0], sensor_values[1],
+     #                       sensor_values[2], sensor_values[3], 
+     ##                       sensor_values[4], sensor_values[5], 
+      #                      sensor_values[6], sensor_values[7]]], dtype=torch.float32)
 
     # Berechnung Vorhersage aus trainiertem KI-Model
     model.eval()  # Setze das Modell in den Auswertungsmodus (deaktiviere Dropout und BatchNorm)

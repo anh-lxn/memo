@@ -28,16 +28,6 @@ ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den
 ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
 ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
 
-# Sensorzuordnung
-sensor_R2 = ch1.voltage
-sensor_R3 = ch2.voltage
-sensor_R4 = ch3.voltage
-sensor_R1 = ch4.voltage
-sensor_R8 = ch5.voltage
-sensor_R7 = ch6.voltage
-sensor_R6 = ch7.voltage
-sensor_R5 = ch8.voltage
-
 # Variable zum Stoppen des Threads
 stop_event = threading.Event()  # Stop-Event für die Steuerung des Sensor-Lese-Threads
 
@@ -54,6 +44,16 @@ def save_to_csv(data, output_dir, ids, x, y, F):
 # Funktion zum kontinuierlichen Auslesen der Sensordaten
 def read_sensors():
     while not stop_event.is_set():  # Schleife, solange das Stop-Event nicht gesetzt ist
+        # Sensorzuordnung
+        sensor_R2 = ch1.voltage
+        sensor_R3 = ch2.voltage
+        sensor_R4 = ch3.voltage
+        sensor_R1 = ch4.voltage
+        sensor_R8 = ch5.voltage
+        sensor_R7 = ch6.voltage
+        sensor_R6 = ch7.voltage
+        sensor_R5 = ch8.voltage
+        
         curr_voltages = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]  # Spannungen an den Kanälen auslesen
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Zeitstempel generieren
         data.append([timestamp, dt] + curr_voltages)  # Zeitstempel und Spannungsdaten zur Datensammlung hinzufügen
@@ -62,7 +62,7 @@ def read_sensors():
 # Funktion zur Eingabe der Parameter über die Kommandozeile
 def get_user_inputs():
     # Definiere feste Werte
-    F = 20  # Kraft
+    F = 15  # Kraft
     y_start = 290  # Startwert für die Y-Position
     y_value_list = []  # Liste für Y-Werte
     ids_list = []  # Liste für IDs
@@ -91,11 +91,11 @@ def get_user_inputs():
 if __name__ == "__main__":
     # Benutzerparameter abfragen
     ids_list, y_value_list, x, F, anz_messwerte = get_user_inputs()  # Benutzereingaben abrufen
-    dt = 0.25  # Zeitintervall für das Lesen der Sensoren
+    dt = 0.1 # Zeitintervall für das Lesen der Sensoren
 
     # Erstelle den Ordner "messungen_aktuelles-datum-zeit"
     current_time = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')  # Aktueller Zeitstempel für den Ordnernamen
-    output_dir = f'../../resources/messungen/messung_pi_28_11'  # Pfad für den Output-Ordner
+    output_dir = f'../../resources/messungen/messung_pi_05_12_15N'  # Pfad für den Output-Ordner
     os.makedirs(output_dir, exist_ok=True)  # Erstelle den Ordner, falls er noch nicht existiert
 
     for i in range(anz_messwerte): #Schleife zur Messung von einer Reihe (11 Messwerte)

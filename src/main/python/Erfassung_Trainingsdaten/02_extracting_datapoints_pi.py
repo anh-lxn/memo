@@ -23,7 +23,7 @@ def get_user_inputs():
     y_value_list = []  # Liste zur Speicherung der X-Positionen
     y_start = 290  # Startwert für die X-Positionen
     anz_dateien = 11  # Anzahl der Dateien, die verarbeitet werden sollen
-    F = 20  # Konstante Kraft, die für alle Dateien gilt
+    F = 15  # Konstante Kraft, die für alle Dateien gilt
     abstand = -58 # Abstand in y-Richtung zwischen zwei Punkten mit x=const.
 
     # Benutzerabfrage zur Eingabe der Start-ID
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 	ids_list, x, y_value_list, F, anz_dateien = get_user_inputs()  # Benutzereingaben abrufen
 	for i in range(anz_dateien):
 		# Erstellen des Dateipfads basierend auf den oben definierten Parametern
-		filepath = f'../../resources/messungen/messung_pi_28_11/{ids_list[i]:3}_strain_values_{x}_{y_value_list[i]}_{F}.csv'
+		filepath = f'../../resources/messungen/messung_pi_05_12_15N/{ids_list[i]:3}_strain_values_{x}_{y_value_list[i]}_{F}.csv'
 
 		# Einlesen der Dehnungsdaten aus der Textdatei
 		dtlist, strain_0, strain_1, strain_2, strain_3, strain_4, strain_5, strain_6, strain_7 = h_fns.read_data_from_txt_adafruit(filepath)
@@ -67,5 +67,5 @@ if __name__ == "__main__":
 		timepoints = h_fns.plot_strain_data(strain_data, dt)  # Ungefilterte Daten plotten [0, eingebener_wert]
 
 		# Speichern der ungefilterten Dehnungsdaten in einer CSV-Datei
-		output_csv_path = f'../../resources/messungen/auswertung/28_11/{ids_list[i]:3}_strain_values_{x}_{y_value_list[i]}_{F}_extracted.csv'
+		output_csv_path = f'../../resources/messungen/auswertung/05_12_15N/{ids_list[i]:3}_strain_values_{x}_{y_value_list[i]}_{F}_extracted.csv'
 		h_fns.save_strain_values_to_csv(timepoints, strain_data, output_csv_path, dt, x, y_value_list[i], F)
