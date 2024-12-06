@@ -209,7 +209,7 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
 
     ax.set_xlabel('X-Achse [mm]', fontsize=18)
     ax.set_ylabel('Y-Achse [mm]', fontsize=18)
-    ax.set_title('XY-Liveplot - Lastpunkt und Sensoren', fontsize=18)
+    ax.set_title('MeMo - Echtzeit Lasterkennung', fontsize=18)
     ax.grid(False)
     ax.axhline(0, color='gray', linewidth=0.5)
     ax.axvline(0, color='gray', linewidth=0.5)
