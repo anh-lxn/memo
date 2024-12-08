@@ -32,7 +32,7 @@ forces = [10, 15, 20]  # Kräfte in Newton
 # Werte zum ändern
 sensor = 1
 anz_messwerte = 11
-interpolated_force = 8  # Interpolationskraft in Newton
+interpolated_force = 18  # Interpolationskraft in Newton
 
 def read_data_from_csv(datei_pfade):
     # Die Datei zeilenweise einlesen
@@ -145,7 +145,7 @@ def save_interpolated_strain_values_to_csv():
 
     # Erzeuge die Daten für die CSV-Datei
     data_for_csv = []
-    headers = ['Datei_ID','X','Y','F','Sensor R1', 'Sensor R2', 'Sensor R3', 'Sensor R4', 'Sensor R5', 'Sensor R6', 'Sensor R7', 'Sensor R8'] #'X','Y','F',
+    headers = ['Datei_ID','X','Y','F','Sensor R1', 'Sensor R2', 'Sensor R3', 'Sensor R4', 'Sensor R5', 'Sensor R6', 'Sensor R7', 'Sensor R8']
     data_for_csv.append(headers)
 
     # Füge die Zeilen der interpolierten Werte hinzu
@@ -161,8 +161,6 @@ def save_interpolated_strain_values_to_csv():
         writer.writerows(data_for_csv)
 
     print(f"Data saved to {output_csv_path}")
-
-
 
 #create_interpolated_strain_plot(sensor, anz_messwerte)
 
