@@ -9,14 +9,14 @@ mithilfe eines neuronalen Netzmodells trainiert und getestet. Das Modell kann ge
 wieder geladen werden.
 """
 
-import main.python.python_data_with_force_prediction.helper_fns_data_with_force as h_fn
-import main.python.python_data_with_force_prediction.helper_fns_ki_model_with_force as h_fn_ki
-import glob
+import helper_fns_data_with_force as h_fn
+#import helper_fns_ki_model_with_force as h_fn_ki
+import helper_fns_ki_model_with_force_test as h_fn_ki
 import numpy as np
 import csv
 
 # Pfad zur Gesamtdatei angeben
-datei_pfad = "../resources/interpolation/auswertung_gesamt_8N_10N_12N_15N_17N_18N_20N.csv"  # <-- Pfad auf Raspberry anpassen
+datei_pfad = "../../resources/interpolation/auswertung_gesamt_8N_10N_12N_15N_17N_18N_20N.csv"  # <-- Pfad auf Raspberry anpassen
 
 # Listen zum Speichern der Werte (load_pos_x, load_pos_y sind Positionen der Lasteinleitung, strain_1 bis strain_8
 # sind die resultierenden Dehnungswerte der Sensoren 1-8 (Auf Sensoranordnung achten!))
@@ -96,7 +96,6 @@ X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
 # Ki Modell Trainieren
 model = h_fn_ki.train_model(X_train, X_val, y_train, y_val)
 
-
 # Testing + Visualisierung der Daten
 X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_test,y_test, num_samples=5)
 # Extrahiere die x- und y-Werte und die Kraft
@@ -106,7 +105,5 @@ F_values_sample = y_sample[:, 2].cpu().numpy()
 x_values_pred = y_pred[:, 0].cpu().numpy()
 y_values_pred = y_pred[:, 1].cpu().numpy()
 F_values_pred = y_pred[:, 2].cpu().numpy()
-
-
 
 h_fn.create_scatterplot_testing(x_values_sample,x_values_pred,y_values_sample,y_values_pred,F_values_sample,F_values_pred,sensor_pos)

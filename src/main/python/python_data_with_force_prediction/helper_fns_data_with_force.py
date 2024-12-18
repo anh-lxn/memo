@@ -310,33 +310,38 @@ def create_scatterplot_testing2(load_pos_x, load_pos_x_pred, load_pos_y, load_po
     plt.show()
 
 # Funktion zum Erstellen des Scatterplots
-def create_scatterplot_testing(load_pos_x, load_pos_x_pred, load_pos_y, load_pos_y_pred, sensor_pos, rectangle_width=50, rectangle_height=20, rotation_angles=None):
+def create_scatterplot_testing(load_pos_x, load_pos_x_pred, load_pos_y, load_pos_y_pred, load_value, load_value_pred, sensor_pos, rectangle_width=50, rectangle_height=20, rotation_angles=None):
     sensor_x, sensor_y = zip(*sensor_pos)  # Entpacke die Tupel in separate Listen für x und y
 
     # Falls keine Rotationswinkel angegeben sind, setzen wir sie alle auf 0 Grad
     if rotation_angles is None:
         rotation_angles = [0] * len(sensor_pos)  # Setze Standardrotationen, falls keine angegeben sind
 
-    # Scatterplot erstellen
-    plt.figure(figsize=(8, 8))  # Größere Figur für bessere Sichtbarkeit
+    # Fixiere die Größe des Plotbereichs
+    fig = plt.figure(figsize=(8, 8), dpi=100)  # Feste Plotgröße unabhängig vom Fenster
+    ax = fig.add_subplot(1, 1, 1)
+
+    # Definiert Fenstergröße
+    manager = plt.get_current_fig_manager()
+    manager.resize(1600, 900)  # Setzt die Fenstergröße auf 1600x900 Pixel
 
     # Hintergrundfläche einfärben
-    plt.fill([-400, 400, 400, -400], [-400, -400, 400, 400], color='yellow', alpha=0.4)
+    ax.fill([-400, 400, 400, -400], [-400, -400, 400, 400], color='yellow', alpha=0.4)
 
-    # Scatterplots mit Labels hinzufügen für die Lastpunkte
+ # Scatterplots mit Labels hinzufügen für die Lastpunkte
     for i, (x, y) in enumerate(zip(load_pos_x, load_pos_y), start=1):
-        plt.scatter(x, y, c='blue', alpha=0.8)
-        plt.text(x, y, str(i) + "  ", fontsize=7, ha='right', va='bottom', bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9))
+        ax.scatter(x, y, c='blue', alpha=0.8)
+        ax.text(x, y, str(i) + "  ", fontsize=7, ha='right', va='bottom', bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9))
 
     # Scatterplots für die vorhergesagten Lastpunkte
     for i, (x, y) in enumerate(zip(load_pos_x_pred, load_pos_y_pred), start=1):
-        plt.scatter(x, y, c='green', alpha=0.5)
-        plt.text(x, y, str(i) + "  ", fontsize=7, ha='right', va='bottom', bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9))
+        ax.scatter(x, y, c='green', alpha=0.5)
+        ax.text(x, y, str(i) + "  ", fontsize=7, ha='right', va='bottom', bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9))
 
     # Sensorpositionen als rotierte Rechtecke darstellen
     for (sx, sy), angle in zip(sensor_pos, rotation_angles):
         # Affine2D-Transformation zur Rotation um den Mittelpunkt
-        trans = Affine2D().rotate_deg_around(sx, sy, angle) + plt.gca().transData
+        trans = Affine2D().rotate_deg_around(sx, sy, angle) + ax.transData
 
         # Rechteck hinzufügen
         rect = patches.Rectangle(
@@ -348,23 +353,38 @@ def create_scatterplot_testing(load_pos_x, load_pos_x_pred, load_pos_y, load_pos
             alpha=0.6,
             transform=trans  # Transformation anwenden
         )
-        plt.gca().add_patch(rect)  # Rechteck zum aktuellen Plot hinzufügen
+        ax.add_patch(rect)  # Rechteck zum aktuellen Plot hinzufügen
 
         # Sensorbeschriftungen 30 Pixel über der aktuellen Position anzeigen, mit weißem Hintergrund
-        plt.text(sx, sy, f"Sensor {sensor_pos.index((sx, sy)) + 1}",
-                 fontsize=11, fontweight='bold', ha='center', color='black',
-                 transform=plt.gca().transData + Affine2D().translate(0, 30),
-                 bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9)
-                 )
+        ax.text(sx, sy, f"Sensor {sensor_pos.index((sx, sy)) + 1}",
+                fontsize=11, fontweight='bold', ha='center', color='black',
+                transform=ax.transData + Affine2D().translate(0, 30),
+                bbox=dict(facecolor='white', edgecolor='none', boxstyle='round,pad=0.3', alpha=0.9)
+                )
 
     # Achsenlimits und Beschriftungen
-    plt.xlim(-500, 500)
-    plt.ylim(-500, 500)
-    plt.xlabel('X-Achse [mm]')
-    plt.ylabel('Y-Achse [mm]')
-    plt.title('Memo-2D-Plot - Lastpunkte (Blau), Vorhergesagte Lastpunkte (Grün), Sensorpatches (Rot)')
-    plt.grid(True)
-    plt.axhline(0, color='gray', linewidth=0.5)
-    plt.axvline(0, color='gray', linewidth=0.5)
-    plt.legend()
+    ax.set_xlim(-500, 500)
+    ax.set_ylim(-500, 500)
+    ax.set_aspect('equal')  # Gleiche Skalierung der Achsen
+    ax.set_box_aspect(1)  # Das Seitenverhältnis des Plots bleibt immer quadratisch
+    ax.set_xlabel('X-Achse [mm]')
+    ax.set_ylabel('Y-Achse [mm]')
+    ax.set_title('Memo-2D-Plot - Lastpunkte (Blau), Vorhergesagte Lastpunkte (Grün), Sensorpatches (Rot)')
+    ax.grid(True)
+    ax.axhline(0, color='gray', linewidth=0.5)
+    ax.axvline(0, color='gray', linewidth=0.5)
+
+    # Legende erstellen
+    legend_box = fig.add_axes([0.75, 0.2, 0.1, 0.6], frame_on=True)  # Position rechts im Plot
+    legend_box.axis('off')  # Keine Achsen anzeigen
+
+    for i, (value, value_pred) in enumerate(zip(load_value, load_value_pred), start=1):
+        delta_f = value - value_pred
+        color = 'green' if -2 <= delta_f <= 2 else 'red'
+        legend_text = f"Punkt {i}: F: {value:.2f}N und F_pred: {value_pred:.2f}N /// deltaF = {delta_f:.2f}N"
+        legend_box.text(0, 0.9 - i * 0.05, legend_text, fontsize=9, ha='left', color=color)
+
+
     plt.show()
+
+
