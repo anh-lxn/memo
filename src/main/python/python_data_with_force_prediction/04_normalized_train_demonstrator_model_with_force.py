@@ -10,8 +10,8 @@ wieder geladen werden.
 """
 
 import helper_fns_data_with_force as h_fn
-#import helper_fns_ki_model_with_force as h_fn_ki
-import helper_fns_ki_model_with_force_test as h_fn_ki
+import helper_fns_ki_model_with_force as h_fn_ki
+#import helper_fns_ki_model_with_force_test as h_fn_ki
 import numpy as np
 import csv
 
@@ -28,11 +28,11 @@ with open(datei_pfad, mode='r', newline='') as csv_datei:
 
     # Kopfzeile extrahieren (erste Zeile)
     kopfzeile = next(reader)
-    print("Kopfzeile:", kopfzeile)
+    #print("Kopfzeile:", kopfzeile)
 
     # Jede weitere Zeile lesen und verarbeiten
     for zeile in reader:
-        print("Zeile:", zeile)
+        #print("Zeile:", zeile)
         load_pos_x.append(float(zeile[1]))
         load_pos_y.append(float(zeile[2]))
         load_value.append(float(zeile[3]))
@@ -74,7 +74,7 @@ strain_6_norm = normalized_strains_list[5]
 strain_7_norm = normalized_strains_list[6]
 strain_8_norm = normalized_strains_list[7]
 # Ergebnis
-print("normalized_strain_list: ", normalized_strains_list[:][:5])
+#print("normalized_strain_list: ", normalized_strains_list[:][:5])
 ########
 
 
@@ -97,7 +97,7 @@ X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
 model = h_fn_ki.train_model(X_train, X_val, y_train, y_val)
 
 # Testing + Visualisierung der Daten
-X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_test,y_test, num_samples=5)
+X_sample, y_sample, y_pred = h_fn_ki.test_random_samples(model,X_test,y_test, num_samples=10)
 # Extrahiere die x- und y-Werte und die Kraft
 x_values_sample = y_sample[:, 0].cpu().numpy()
 y_values_sample = y_sample[:, 1].cpu().numpy()

@@ -17,7 +17,6 @@ import torch.optim as optim
 from sklearn.model_selection import train_test_split
 import random
 import datetime
-
 from sklearn.preprocessing import StandardScaler
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -46,8 +45,10 @@ def test_model(model, X_test, y_test):
         # gefolgt von der Mittelwertbildung.
         accuracy_x = torch.abs(y_pred[:, 0] - y_test[:, 0].to(device)).mean().item()
         accuracy_y = torch.abs(y_pred[:, 1] - y_test[:, 1].to(device)).mean().item()
+        accuracy_F = torch.abs(y_pred[:, 2] - y_test[:, 2].to(device)).mean().item()
         print(f"Mittlere absolute Abweichung für x-Werte in [mm]: {accuracy_x}")
         print(f"Mittlere absolute Abweichung für y-Werte in [mm]: {accuracy_y}")
+        print(f"Mittlere absolute Abweichung für F-Werte in [N]: {accuracy_F}")
 
 def prepare_data(strains, load_pos_x, load_pos_y, load_value, scale_data=False):
     # Sicherstellen, dass die Längen übereinstimmen
@@ -81,7 +82,7 @@ def prepare_data(strains, load_pos_x, load_pos_y, load_value, scale_data=False):
     y_val = torch.from_numpy(y_val).type(torch.float)
     y_test = torch.from_numpy(y_test).type(torch.float)
 
-    print(f'Trainingsdaten: {X_train.shape}, Validierungsdaten: {X_val.shape}, Testdaten: {X_test.shape}')
+    #print(f'Trainingsdaten: {X_train.shape}, Validierungsdaten: {X_val.shape}, Testdaten: {X_test.shape}')
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 def train_model(X_train,X_test,y_train,y_test):
@@ -104,9 +105,9 @@ def train_model(X_train,X_test,y_train,y_test):
 
     # Definition von Loss- und Optimierungsfunktionen
     loss_fn = nn.MSELoss()  # mean square error
-    optimizer = optim.Adam(model.parameters(), lr=0.00025)
+    optimizer = optim.Adam(model.parameters(), lr=0.0018)
 
-    n_epochs = 30000  # number of epochs to run
+    n_epochs = 10000  # number of epochs to run
 
     # Listen für Training- und Test-Plots
     train_losses = []
@@ -123,9 +124,9 @@ def train_model(X_train,X_test,y_train,y_test):
         # Backward pass
         loss.backward()
         optimizer.step()
-
+        
         # Print progress
-        if epoch % 2000 == 0:
+        if epoch % 500 == 0:
             print(f"Epoch {epoch}: Test-Loss = {loss.item()}")
             # Append loss and epoch
             with torch.no_grad():
@@ -149,7 +150,7 @@ def train_model(X_train,X_test,y_train,y_test):
     test_model(model,X_test,y_test)
 
     #joblib.dump(scaler, 'scaler_v4.pkl') scaler speichern
-    save_model(model, normalized="normalized")
+    #save_model(model, normalized="normalized")
     return model
 
 def save_model(model, path_prefix='../../resources/models/model_demonstrator', normalized='notnormalized'):

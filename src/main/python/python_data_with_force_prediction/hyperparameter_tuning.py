@@ -11,12 +11,9 @@ import csv
 import helper_fns_ki_model_with_force as h_fn_ki
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BATCHSIZE = 128
 CLASSES = 3  # 3 Outputs: x, y, Force
 DIR = os.getcwd()
-EPOCHS = 20000  # Je nach Bedarf anpassen
-N_TRAIN_EXAMPLES = BATCHSIZE * 30
-N_VALID_EXAMPLES = BATCHSIZE * 10
+EPOCHS = 15000  # Je nach Bedarf anpassen
 
 ### Experimentell ermittelte Daten
 datei_pfad = "../../resources/interpolation/auswertung_gesamt_8N_10N_12N_15N_17N_18N_20N.csv"  # <-- Pfad auf Raspberry anpassen
@@ -70,33 +67,72 @@ strain_7_norm = normalized_strains_list[6]
 strain_8_norm = normalized_strains_list[7]
 
 
+# Dein fixes Modell (identisch zu dem, was du vorher hattest)
+class FixedModel(nn.Module):
+    def __init__(self):
+        super(FixedModel, self).__init__()
+        self.layer1 = nn.Linear(8, 128)  # 8 Eingaben für die 8 Sensorwerte
+        self.relu1 = nn.ReLU()
+        self.layer2 = nn.Linear(128, 512)
+        self.relu2 = nn.ReLU()
+        self.layer3 = nn.Linear(512, 512)
+        self.relu3 = nn.ReLU()
+        self.layer4 = nn.Linear(512, 128)
+        self.relu4 = nn.ReLU()
+        self.layer5 = nn.Linear(128, 128)
+        self.relu5 = nn.ReLU()
+        self.layer6 = nn.Linear(128, 6)  # 6 Ausgabefeatures (z.B. x- und y-Koordinaten)
+        self.relu6 = nn.ReLU()
+        self.output_layer = nn.Linear(6, 3)  # 3 Outputs (z.B. x-, y-Koordinaten der Lastenposition)
+    
+    def forward(self, x):
+        x = self.relu1(self.layer1(x))
+        x = self.relu2(self.layer2(x))
+        x = self.relu3(self.layer3(x))
+        x = self.relu4(self.layer4(x))
+        x = self.relu5(self.layer5(x))
+        x = self.relu6(self.layer6(x))
+        x = self.output_layer(x)
+        return x
+    
+
 def define_model(trial):
     # Optuna schlägt die Anzahl der Schichten, Einheiten und Dropout-Rate vor
-    n_layers = trial.suggest_int("n_layers", 1, 3)
+    n_layers = trial.suggest_int("n_layers", 5, 5)
     layers = []
 
     in_features = 8  # 8 Strain-Sensoren als Eingabe
     for i in range(n_layers):
-        out_features = trial.suggest_int(f"n_units_l{i}", 4, 128)
+        out_features = trial.suggest_int(f"n_units_l{i}", 128, 512)
         layers.append(nn.Linear(in_features, out_features))
         layers.append(nn.ReLU())
-        p = trial.suggest_float(f"dropout_l{i}", 0.2, 0.5)
+        
+        # Optional: Dropout für jede Schicht
+        p = trial.suggest_float(f"dropout_l{i}", 0.2, 0.5)  # Dropout-Rate zwischen 0.2 und 0.5
         layers.append(nn.Dropout(p))
 
         in_features = out_features
-    layers.append(nn.Linear(in_features, CLASSES))
-    layers.append(nn.LogSoftmax(dim=1))
+
+    # Ausgabe-Schicht
+    layers.append(nn.Linear(in_features, 6))  # 6 Ausgabefeatures (für 6 Werte z.B. x- und y-Koordinaten)
+    layers.append(nn.LogSoftmax(dim=1))  # Softmax für die Klassifizierung (falls zutreffend)
 
     return nn.Sequential(*layers).to(DEVICE)
 
 def objective(trial):
     # Modell definieren
-    model = define_model(trial).to(DEVICE)
+    model = FixedModel().to(DEVICE)
+    print("Device: ", DEVICE)
 
     # Generate the optimizers.
-    optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
-    lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+    #optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
+    optimizer_name = "Adam"
+    lr = trial.suggest_float("lr", 0.0002, 0.0003, step=0.00002, log=False)
+    lr = round(lr, 6)
     optimizer = getattr(optim, optimizer_name)(model.parameters(), lr=lr)
+
+    accuracy_list = []
+    mittelwert_accuracy= 0
 
     # Get dataset
     X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
@@ -105,39 +141,45 @@ def objective(trial):
         )
     
     # Training des Modells
+    # Definition von Loss- und Optimierungsfunktionen
+    loss_fn = nn.MSELoss()  # mean square error
+
     for epoch in range(EPOCHS):
         model.train()
         optimizer.zero_grad()
-
-        # Training
-        output = model(X_train.to(DEVICE))
-        loss = F.mse_loss(output,  y_train.to(DEVICE))
+        
+        # Forward pass
+        y_pred = model(X_train.to(DEVICE))
+        loss = loss_fn(y_pred, y_train.to(DEVICE))
+        # Backward pass
         loss.backward()
         optimizer.step()
 
-        # Validierung des Modells
-        model.eval()
+        # Deaktiviert das Tracking von Gradienten, um den Speicherverbrauch zu reduzieren und die Berechnung zu beschleunigen,
+        # da keine Rückwärtsausbreitung durchgeführt wird
+        
         with torch.no_grad():
-            output = model(X_val.to(DEVICE))  # Verwende X_val für die Validierung
-            # Berechne den mittleren quadratischen Fehler als Metrik
-            mse = F.mse_loss(output, y_val.to(DEVICE)).item()
-            # Genauigkeit könnte für Regression basierend auf einem Fehlerbereich berechnet werden
-            correct = ((output - y_val.to(DEVICE)).abs() < 0.1).sum().item()  # Beispiel für Toleranzgrenze von 0.1
+            y_test_pred = model(X_test.to(DEVICE))
+            test_loss = loss_fn(y_test_pred, y_test.to(DEVICE))
 
-        # Berechne die mittlere Akkuratheit
-        accuracy = correct / len(X_val)  # Genauigkeit für Validierungsdaten
+           
+        if epoch % 500 == 0:
+            accuracy_list = []
+            print(f"Epoch {epoch}: Loss = {round(loss.item(), 2)}; Test-Loss = {round(test_loss.item(), 2)}; Average-Test-Loss = {round(mittelwert_accuracy, 2)}")
 
-        trial.report(accuracy, epoch)
+        accuracy_list.append(test_loss.item())
+        mittelwert_accuracy = np.mean(accuracy_list)
+        trial.report(mittelwert_accuracy, epoch)
 
         if trial.should_prune():
             raise optuna.exceptions.TrialPruned()
 
-    return accuracy
+    return mittelwert_accuracy
 
 
 if __name__ == "__main__":
-    study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=10, timeout=600)  # n_trials und timeout anpassen
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=5, timeout=600)  # n_trials und timeout anpassen
 
     pruned_trials = study.get_trials(deepcopy=False, states=[TrialState.PRUNED])
     complete_trials = study.get_trials(deepcopy=False, states=[TrialState.COMPLETE])
