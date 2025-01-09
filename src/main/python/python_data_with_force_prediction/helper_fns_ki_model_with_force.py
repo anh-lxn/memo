@@ -178,7 +178,7 @@ def load_model(path='../resources/models/model_demonstrator_v02_normalized.pth')
         nn.ReLU(),
         nn.Linear(128, 6),
         nn.ReLU(),
-        nn.Linear(6, 3)  # zwei Outputs für x- und y-Koordinaten des Lasteinleitungspunktes
+        nn.Linear(6, 3)  # drei Outputs für x- und y-Koordinaten des Lasteinleitungspunktes mit der Kraft
     ).to(device)
 
     model.load_state_dict(torch.load(path, map_location=torch.device('cpu')))

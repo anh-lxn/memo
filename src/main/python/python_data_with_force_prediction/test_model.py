@@ -76,7 +76,7 @@ X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
 )
 
 # Ki Modell Trainieren
-model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_12_12_2024_19-10-44.pth')
+model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_19_12_2024_15-48-27.pth')
 
 """
 # Testing + Visualisierung der Daten
@@ -119,7 +119,7 @@ def print_colored_diff(id, real_x, real_y, real_f, pred_x, pred_y, pred_f):
         # Für die Kraft (F) verwenden wir ein anderes Intervall
         if is_force:
             # Kraft hat ein Intervall von -2 bis 2
-            if -2 <= diff <= 2:
+            if -4 <= diff <= 4:
                 return f"\033[92m{diff:.2f}\033[0m"  # Grün für kleine Abweichung
             else:
                 return f"\033[91m{diff:.2f}\033[0m"  # Rot für große Abweichung

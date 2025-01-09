@@ -9,7 +9,6 @@ from matplotlib.transforms import Affine2D
 import matplotlib.patches as patches
 import helper_fns_ki_model_with_force as h_fn_ki
 from matplotlib.widgets import Button
-"""
 import board                # Für die GPIO- und I2C-Steuerung auf dem Raspberry Pi
 import busio                # Für die I2C-Kommunikation
 import adafruit_ads1x15.ads1115 as ADS  # Für die Verwendung des ADS1115 AD-Wandlers
@@ -23,7 +22,6 @@ ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den
 # Einrichtung der analogen Kanäle
 ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
 ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
-"""
 
 # Definition der Sensorpositionen für Plot
 sensor_pos = [(-315, -315), (-315, 0), (-315, 315), (0, 315), (315, 315), (315, 0), (315, -315), (0, -315)]
@@ -56,7 +54,7 @@ def calc_loadpoint(model):
         x_value_pred (float): Die vorhergesagte x-Koordinate des Lastpunktes.
         y_value_pred (float): Die vorhergesagte y-Koordinate des Lastpunktes.
         sensor_values (list): Die Sensorwerte.
-    
+    """
     
     # 1. Auslesen der Sensorwerte über i2C'
     sensor_R2 = ch1.voltage
@@ -67,20 +65,19 @@ def calc_loadpoint(model):
     sensor_R7 = ch6.voltage
     sensor_R6 = ch7.voltage
     sensor_R5 = ch8.voltage
-    """
+    
 
-    #sensor_values = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]
+    sensor_values = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]
     #sensor_values = [round(sensor_R2, 3), round(sensor_R3, 3), round(sensor_R4, 3), round(sensor_R1, 3), round(sensor_R8, 3), round(sensor_R7, 3), round(sensor_R6, 3), round(sensor_R5, 3)]
-    sensor_values, x_value, y_value, F_value = get_sensor_values_by_id(830)
+    #sensor_values, x_value, y_value, F_value = get_sensor_values_by_id(830)
     
     # Wenn nicht gedrückt wird, übergebe nicht sichtbaren Punkt
-    """
     total_sum = 0 
     for spannung in sensor_values:
        total_sum += spannung
-    if total_sum > 25:
-       return 10000, 10000, sensor_values
-    """
+    if total_sum > 26.5:
+       return 10000, 10000, 0, sensor_values
+    
     #### Normalisierung der Strain Listen
     # Umwandeln in ein numpy array für einfachere Handhabung
     strains_array = np.array(sensor_values)
@@ -115,7 +112,7 @@ def calc_loadpoint(model):
     y_value_pred = y_pred[:, 1].numpy()
     F_values_pred = y_pred[:, 2].numpy()
 
-    return x_value_pred[0], y_value_pred[0], F_values_pred[0], x_value, y_value, F_value, sensor_values
+    return x_value_pred[0], y_value_pred[0], F_values_pred[0], sensor_values
 
 # Funktion zum Abrufen der Sensorwerte und X/Y-Werte basierend auf der Datei-ID
 def get_sensor_values_by_id(file_id):
@@ -269,7 +266,7 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
         # Wirkliche Werte
 
         # Funktion zur Berechnung der Lastkoordinaten und Sensorwerte aufrufen
-        load_pos_x, load_pos_y, load_value, real_x, real_y, real_load, sensor_values = calc_loadpoint(model)
+        load_pos_x, load_pos_y, load_value, sensor_values = calc_loadpoint(model)
 
         # Sensorwerte zu den zugehörigen Sensoren zuordnen
         sensor_labels = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']
@@ -302,9 +299,9 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
         
         # Konsolenausgabe der Koordinaten und Sensorwerte
         print("\033[H\033[J", end="")
-        print(f"Load Position - X: {real_x:.2f}, Y: {real_y:.2f}")
+        #print(f"Load Position - X: {real_x:.2f}, Y: {real_y:.2f}")
         print(f"Predicted Load Position - X: {load_pos_x:.2f}, Y: {load_pos_y:.2f}\n")
-        print(f"Load Value: {real_load}N")
+        #print(f"Load Value: {real_load}N")
         print(f"Predicted Force: {load_value}N\n")
     
         print(f"Sensor Values: {sensor_value_mapping}")
@@ -344,7 +341,7 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
     button.on_clicked(close)
 
     # Animation starten (Intervall = 100 ms)
-    ani = animation.FuncAnimation(fig, update, frames=None, interval=1000, blit=False)
+    ani = animation.FuncAnimation(fig, update, frames=None, interval=10, blit=False)
 
     # Plot anzeigen
     plt.show()
