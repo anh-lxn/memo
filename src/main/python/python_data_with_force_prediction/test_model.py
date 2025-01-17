@@ -76,7 +76,7 @@ X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
 )
 
 # Ki Modell Trainieren
-model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_19_12_2024_15-48-27.pth')
+model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_49501_0.00205_41.pth')
 
 """
 # Testing + Visualisierung der Daten

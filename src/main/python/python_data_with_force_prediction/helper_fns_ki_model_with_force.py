@@ -18,18 +18,43 @@ from sklearn.model_selection import train_test_split
 import random
 import datetime
 from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader, TensorDataset
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Setze den Random Seed für NumPy
-#np.random.seed(42)
-# Setze den Random Seed für Python
-#random.seed(42)
+# Hyperparameter Finales Training
+LEARNING_RATE= 0.00205
+EPOCHS = 49501
 
-# Setze den Random Seed für PyTorch auf allen Geräten (CPU und GPU), wenn verfügbar
-#torch.manual_seed(42)
-#if torch.cuda.is_available():
-#    torch.cuda.manual_seed_all(42)
+def set_seed(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+set_seed(41)
+
+# Funktion zur Auswahl der Loss-Funktion
+def get_loss_function(loss_function_name):
+    if loss_function_name == 'MSE':
+        return nn.MSELoss()
+    elif loss_function_name == 'MAE':
+        return nn.L1Loss()
+    else:
+        raise ValueError(f"Unbekannte Loss-Funktion: {loss_function_name}")
+
+# Funktion zur Auswahl des Optimizers
+def get_optimizer(optimizer_name, model, learning_rate):
+    if optimizer_name == 'Adam':
+        return optim.Adam(model.parameters(), lr=learning_rate)
+    elif optimizer_name == 'SGD':
+        return optim.SGD(model.parameters(), lr=learning_rate)
+    elif optimizer_name == 'RMSProp':
+        return optim.RMSprop(model.parameters(), lr=learning_rate)
+    else:
+        raise ValueError(f"Unbekannter Optimizer: {optimizer_name}")
 
 # Funktion zum Testen des Modells
 def test_model(model, X_test, y_test):
@@ -105,17 +130,19 @@ def train_model(X_train,X_test,y_train,y_test):
 
     # Definition von Loss- und Optimierungsfunktionen
     loss_fn = nn.MSELoss()  # mean square error
-    optimizer = optim.Adam(model.parameters(), lr=0.0018)
-
-    n_epochs = 10000  # number of epochs to run
+    loss_function_name = "MSE"
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer_name = "Adam"
 
     # Listen für Training- und Test-Plots
     train_losses = []
     test_losses = []
     epochs = []
+    avg_train_losses = []
+    avg_test_losses = []
 
     # Training loop without batches
-    for epoch in range(n_epochs):
+    for epoch in range(EPOCHS):
         model.train()
         optimizer.zero_grad()
         # Forward pass
@@ -125,20 +152,30 @@ def train_model(X_train,X_test,y_train,y_test):
         loss.backward()
         optimizer.step()
         
-        # Print progress
+        # Append train loss for averaging later
+        train_losses.append(loss.item())
+
+        with torch.no_grad():
+            model.eval()
+            y_test_pred = model(X_test.to(device))
+            test_loss = loss_fn(y_test_pred, y_test.to(device))
+            test_losses.append(test_loss.item())
+
+        # Evaluate and track test loss every 500 epochs
         if epoch % 500 == 0:
-            print(f"Epoch {epoch}: Test-Loss = {loss.item()}")
-            # Append loss and epoch
-            with torch.no_grad():
-                y_test_pred = model(X_test.to(device))
-                test_loss = loss_fn(y_test_pred, y_test.to(device))
-                test_losses.append(test_loss.item())
-            train_losses.append(loss.item())
             epochs.append(epoch)
 
+            # Print progress
+            avg_train_loss = np.mean(train_losses[-500:])  # Average last 500 train losses
+            avg_test_loss = np.mean(test_losses[-500:])  # Average last 500 test losses
+            avg_train_losses.append(avg_train_loss)
+            avg_test_losses.append(avg_test_loss)
+
+            print(f"Epoch {epoch}: Avg Train-Loss = {avg_train_loss:.4f}, Avg Test-Loss = {avg_test_loss}")
+
     # Plotting training and test loss curves
-    plt.plot(epochs, train_losses, label='Train Loss')
-    plt.plot(epochs, test_losses, label='Test Loss')
+    plt.plot(epochs, avg_train_losses, label='Avgerage Train Loss')
+    plt.plot(epochs, avg_test_losses, label='Avgerage Test Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.title('Training and Test Loss')
@@ -150,8 +187,67 @@ def train_model(X_train,X_test,y_train,y_test):
     test_model(model,X_test,y_test)
 
     #joblib.dump(scaler, 'scaler_v4.pkl') scaler speichern
-    #save_model(model, normalized="normalized")
+    save_model(model, normalized="normalized")
     return model
+
+def train_model_hypertuning(X_train, X_test, y_train, y_test, epochs, learning_rate, optimizer_name, loss_fn_name):
+    # Definieren des neuronalen Netzes
+    model = nn.Sequential(
+        nn.Linear(8, 128), # 8 Inputs für die 8 Sensorwerte
+        nn.ReLU(),
+        nn.Linear(128, 512),
+        nn.ReLU(),
+        nn.Linear(512, 512),
+        nn.ReLU(),
+        nn.Linear(512, 128),
+        nn.ReLU(),
+        nn.Linear(128, 128),
+        nn.ReLU(),
+        nn.Linear(128, 6),
+        nn.ReLU(),
+        nn.Linear(6, 3)  # drei Outputs für x- und y-Koordinaten des Lasteinleitungspunktes mit der Kraft
+    ).to(device)  # Modell auf GPU verschieben
+
+    # Definition von Loss- und Optimierungsfunktionen
+    loss_fn = get_loss_function(loss_fn_name)
+    optimizer = get_optimizer(optimizer_name, model, learning_rate)
+
+    # Listen für Training- und Test-Plots
+    train_losses = []
+    test_losses = []
+    avg_train_losses = []
+    avg_test_losses = []
+
+    # Training loop without batches
+    for epoch in range(epochs):
+        model.train()
+        optimizer.zero_grad()
+        # Forward pass
+        y_pred = model(X_train.to(device))
+        loss = loss_fn(y_pred, y_train.to(device))
+        # Backward pass
+        loss.backward()
+        optimizer.step()
+        
+        # Append train loss for averaging later
+        train_losses.append(loss.item())
+
+        with torch.no_grad():
+            model.eval()
+            y_test_pred = model(X_test.to(device))
+            test_loss = loss_fn(y_test_pred, y_test.to(device))
+            test_losses.append(test_loss.item())
+
+        # Evaluate and track test loss every 500 epochs
+        if epoch % 500 == 0:
+            # Print progress
+            avg_train_loss = np.mean(train_losses[-500:])  # Average last 500 train losses
+            avg_test_loss = np.mean(test_losses[-500:])  # Average last 500 test losses
+            avg_train_losses.append(avg_train_loss)
+            avg_test_losses.append(avg_test_loss)
+
+            print(f"Epoch {epoch}: Avg Train-Loss = {avg_train_loss:.4f}, Avg Test-Loss = {avg_test_loss}")
+    return avg_train_loss, avg_test_loss
 
 def save_model(model, path_prefix='../../resources/models/model_demonstrator', normalized='notnormalized'):
     # Aktuelles Datum auslesen

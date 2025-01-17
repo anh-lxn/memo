@@ -1,0 +1,2 @@
+Epochs,Optimizer,Loss Function,Learning Rate,Avg Train Loss,Avg Test Loss
+50000,Adam,MSE,0.0013,1.5485506224818528,16.508525480270386
