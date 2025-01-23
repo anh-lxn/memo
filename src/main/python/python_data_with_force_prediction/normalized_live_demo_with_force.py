@@ -27,7 +27,7 @@ ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ad
 sensor_pos = [(-315, -315), (-315, 0), (-315, 315), (0, 315), (315, 315), (315, 0), (315, -315), (0, -315)]
 
 # Model laden
-model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_12_12_2024_19-10-44.pth')
+model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_49501_0.00205_41_better.pth')
 
 # Plot im Cybepunk-Stil
 plt.style.use("cyberpunk")
