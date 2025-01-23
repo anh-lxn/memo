@@ -90,7 +90,7 @@ h_fn.create_scatterplot(load_pos_x,load_pos_y,sensor_pos)
 # Test und Trainingsdaten erstellen
 X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
     [strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm],
-    load_pos_x, load_pos_y, load_value
+    load_pos_x, load_pos_y, load_value, percentage=0.1
 )
 
 # Ki Modell Trainieren

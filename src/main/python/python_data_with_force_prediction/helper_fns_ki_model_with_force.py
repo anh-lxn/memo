@@ -75,7 +75,7 @@ def test_model(model, X_test, y_test):
         print(f"Mittlere absolute Abweichung für y-Werte in [mm]: {accuracy_y}")
         print(f"Mittlere absolute Abweichung für F-Werte in [N]: {accuracy_F}")
 
-def prepare_data(strains, load_pos_x, load_pos_y, load_value, scale_data=False):
+def prepare_data(strains, load_pos_x, load_pos_y, load_value, percentage, scale_data=False):
     # Sicherstellen, dass die Längen übereinstimmen
     if not all(len(strain) == len(load_pos_x) for strain in strains):
         raise ValueError("Die Längen der Eingabewerte stimmen nicht überein.")
@@ -88,9 +88,17 @@ def prepare_data(strains, load_pos_x, load_pos_y, load_value, scale_data=False):
     X = df.values
     y_combined = np.column_stack((load_pos_x, load_pos_y, load_value))
 
-    # Aufteilen in Train-, Val- und Testdaten
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y_combined, train_size=0.8, shuffle=True)  # 80% für Training
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)  # 10% für Validation, 10% für Test
+    if percentage == 1.0: # Wenn vollständiger Datensatz verwendet wird
+        # Aufteilen in Train-, Val- und Testdaten
+        X_train, X_temp, y_train, y_temp = train_test_split(X, y_combined, train_size=0.8, shuffle=True)  # 80% für Training
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)  # 10% für Validation, 10% für Test
+    else: # Wenn ein Teil der Daten verwendet wird 
+         # Datensatz verkleinern, um einen Prozentsatz
+        X_reduced, X_dump, y_reduced, y_dump = train_test_split(X, y_combined, train_size=percentage, shuffle=True)  # percentage% der Daten
+
+        # Aufteilen in Train-, Val- und Testdaten
+        X_train, X_temp, y_train, y_temp = train_test_split(X_reduced, y_reduced, train_size=0.8, shuffle=True)  # 80% für Training
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, shuffle=True)  # 10% für Validation, 10% für Test
 
     # Daten skalieren
     if scale_data:

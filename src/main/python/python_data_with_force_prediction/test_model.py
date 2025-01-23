@@ -69,14 +69,16 @@ strain_8_norm = normalized_strains_list[7]
 #print("normalized_strain_list: ", normalized_strains_list[:][:5])
 ########
 
+"""
 # Test und Trainingsdaten erstellen
 X_train, X_val, X_test, y_train, y_val, y_test = h_fn_ki.prepare_data(
     [strain_1_norm, strain_2_norm, strain_3_norm, strain_4_norm, strain_5_norm, strain_6_norm, strain_7_norm, strain_8_norm],
     load_pos_x, load_pos_y, load_value
 )
+"""
 
 # Ki Modell Trainieren
-model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_49501_0.00205_41.pth')
+model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_23_01_2025_15-46-24.pth')
 
 """
 # Testing + Visualisierung der Daten
