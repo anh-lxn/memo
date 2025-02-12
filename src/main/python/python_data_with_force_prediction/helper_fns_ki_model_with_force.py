@@ -34,7 +34,7 @@ def set_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-set_seed(41)
+#set_seed(41)
 
 # Funktion zur Auswahl der Loss-Funktion
 def get_loss_function(loss_function_name):

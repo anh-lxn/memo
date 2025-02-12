@@ -14,7 +14,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         with conn:
             print(f"✅ Verbunden mit {addr}")
 
-            with open("/destination/path/file", "wb") as f:
+            with open("/home/anh.lxn/Documents/memo/src/main/resources/live_sync/live_data.csv", "wb") as f:
                 while True:
                     data = conn.recv(1024)
                     if not data:
