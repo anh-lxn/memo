@@ -28,7 +28,7 @@ X = data[['Strain_1', 'Strain_2', 'Strain_3', 'Strain_4', 'Strain_5', 'Strain_6'
 y = data['Class'].values
 
 # Daten in Trainings- und Testset aufteilen (95% Training, 5% Test)
-X_train, X_test, y_train, y_test, indices_train, indices_test = train_test_split(X, y, data.index, test_size=0.1, random_state=40)
+X_train, X_test, y_train, y_test, indices_train, indices_test = train_test_split(X, y, data.index, test_size=0.02, random_state=50)
 
 # Feature-Skalierung für bessere Leistung von kNN
 scaler = StandardScaler()
@@ -36,7 +36,7 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # k-NN Klassifikator mit k=9 erstellen
-knn = KNeighborsClassifier(n_neighbors=25)
+knn = KNeighborsClassifier(n_neighbors=25, weights='distance',metric='manhattan')
 
 # Modell mit Trainingsdaten trainieren
 knn.fit(X_train, y_train)
@@ -59,15 +59,36 @@ prediction_prob = knn.predict_proba(X_test)
 
 # Ausgabe der Vorhersagewahrscheinlichkeiten zusammen mit den zugehörigen Zeilen der CSV
 print("\nVorhersagewahrscheinlichkeiten für das Testset zusammen mit den zugehörigen CSV-Zeilen:")
+abs_errors_x = []
+abs_errors_y = []
 for idx, prob in zip(indices_test, prediction_prob):
     prob_array = np.array(prob)
     weighted_centers = centers_arr * prob_array.reshape(-1,1)
     predicted_coordinate = weighted_centers.sum(axis=0)
+
+    # Extrahiere die tatsächlichen Koordinaten aus der CSV-Zeile
+    actual_x = data.iloc[idx]['X']
+    actual_y = data.iloc[idx]['Y']
+
+    # Berechne den Fehler und den quadrierten Fehler
+    error_x = predicted_coordinate[0] - actual_x
+    error_y = predicted_coordinate[1] - actual_y
+    abs_error_x = abs(error_x)
+    abs_error_y = abs(error_y)
+
+    # Speichere die quadrierten Fehler in den Listen
+    abs_errors_x.append(abs_error_x)
+    abs_errors_y.append(abs_error_y)
+
     print(f"Zeile (Original Index: {idx}):")
     print(f"Vorhersagewahrscheinlichkeiten: {prob}")
     print("Mittlere vorhergesagte Koordinate:", predicted_coordinate)
     print(f"Zugehörige CSV-Zeile: {data.iloc[idx].to_dict()}")
     print("-" * 80)
+
+mae_x = 1/len(abs_errors_x)*sum(abs_errors_x)
+mae_y = 1/len(abs_errors_y)*sum(abs_errors_y)
+print(f"MAE_X={mae_x} mm, MAE_Y={mae_y} mm")
 
 
 # Confusion Matrix berechnen
