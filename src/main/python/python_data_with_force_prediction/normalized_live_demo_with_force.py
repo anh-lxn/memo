@@ -298,13 +298,13 @@ def create_live_scatterplot(rectangle_width=50, rectangle_height=20, rotation_an
         force_bar_text.set_text(f"Kraft: {load_value:.2f} N")
         
         # Konsolenausgabe der Koordinaten und Sensorwerte
-        print("\033[H\033[J", end="")
+        #print("\033[H\033[J", end="")
         #print(f"Load Position - X: {real_x:.2f}, Y: {real_y:.2f}")
-        print(f"Predicted Load Position - X: {load_pos_x:.2f}, Y: {load_pos_y:.2f}\n")
+        #print(f"Predicted Load Position - X: {load_pos_x:.2f}, Y: {load_pos_y:.2f}\n")
         #print(f"Load Value: {real_load}N")
-        print(f"Predicted Force: {load_value}N\n")
+        #print(f"Predicted Force: {load_value}N\n")
     
-        print(f"Sensor Values: {sensor_value_mapping}")
+        #print(f"Sensor Values: {sensor_value_mapping}")
         
         # Entfernen der vorherigen Heatmap (konturierte Flächen)
         for coll in ax.collections:
