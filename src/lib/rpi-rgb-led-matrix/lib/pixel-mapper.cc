@@ -283,6 +283,36 @@ private:
   int parallel_;
 };
 
+class Grid4x4Mapper : public PixelMapper {
+public:
+  virtual const char *GetName() const { return "grid4x4123"; }
+
+  virtual bool GetSizeMapping(int matrix_width, int matrix_height,
+                              int *visible_width, int *visible_height) const {
+    *visible_width = 256;
+    *visible_height = 256;
+    return true;
+  }
+
+  virtual void MapVisibleToMatrix(int matrix_width, int matrix_height,
+                                  int x, int y,
+                                  int *matrix_x, int *matrix_y) const {
+    const int panel_w = 64;
+    const int panel_h = 64;
+    const int panels_per_row = 4;
+
+    int panel_x = x / panel_w;
+    int panel_y = y / panel_h;
+    int panel_index = panel_y * panels_per_row + panel_x;
+
+    int inner_x = x % panel_w;
+    int inner_y = y % panel_h;
+
+    // NEU: horizontal angeordnet
+    *matrix_x = panel_index * panel_w + inner_x;
+    *matrix_y = inner_y;
+  }
+};
 
 typedef std::map<std::string, PixelMapper*> MapperByName;
 static void RegisterPixelMapperInternal(MapperByName *registry,
@@ -302,6 +332,8 @@ static MapperByName *CreateMapperMap() {
   RegisterPixelMapperInternal(result, new UArrangementMapper());
   RegisterPixelMapperInternal(result, new VerticalMapper());
   RegisterPixelMapperInternal(result, new MirrorPixelMapper());
+  RegisterPixelMapperInternal(result, new Grid4x4Mapper());  // 4x4 Mapper
+
   return result;
 }
 
@@ -324,6 +356,12 @@ std::vector<std::string> GetAvailablePixelMappers() {
   }
   return result;
 }
+// Registriere den Mapper beim Start des Programms
+extern "C" void RegisterMyGrid4x4() __attribute__((constructor));
+void RegisterMyGrid4x4() {
+  RegisterPixelMapper(new Grid4x4Mapper());
+}
+
 
 const PixelMapper *FindPixelMapper(const char *name,
                                    int chain, int parallel,

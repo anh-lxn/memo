@@ -1,3 +1,6 @@
+#Dana und Luise waren hier und haben die ganze arbeit gemacht also geld bitte an uns direkt aber!!!!!! wehe wenn nicht...
+
+
 # Imports
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
