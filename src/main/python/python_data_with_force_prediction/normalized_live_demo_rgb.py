@@ -8,7 +8,6 @@ import csv
 import socket
 import os
 import threading
-"""
 import board                # Für die GPIO- und I2C-Steuerung auf dem Raspberry Pi
 import busio                # Für die I2C-Kommunikation
 import adafruit_ads1x15.ads1115 as ADS  # Für die Verwendung des ADS1115 AD-Wandlers
@@ -23,7 +22,7 @@ ads1 = ADS.ADS1115(i2cbus, address=0x49)  # Erstellt ein zweites Objekt für den
 # Einrichtung der analogen Kanäle
 ch1, ch2, ch3, ch4 = AnalogIn(ads0, ADS.P0), AnalogIn(ads0, ADS.P1), AnalogIn(ads0, ADS.P2), AnalogIn(ads0, ADS.P3)  # Kanäle des ersten ADS1115
 ch5, ch6, ch7, ch8 = AnalogIn(ads1, ADS.P0), AnalogIn(ads1, ADS.P1), AnalogIn(ads1, ADS.P2), AnalogIn(ads1, ADS.P3)  # Kanäle des zweiten ADS1115
-"""
+
 
 # Model laden
 model = h_fn_ki.load_model(path='../../resources/models/model_demonstrator_normalized_49501_0.00205_41_better.pth')
@@ -48,7 +47,7 @@ def calc_loadpoint(model):
         y_value_pred (float): Die vorhergesagte y-Koordinate des Lastpunktes.
         sensor_values (list): Die Sensorwerte.
     """
-    """
+    
     # 1. Auslesen der Sensorwerte über i2C'
     sensor_R2 = ch1.voltage
     sensor_R3 = ch2.voltage
@@ -58,12 +57,12 @@ def calc_loadpoint(model):
     sensor_R7 = ch6.voltage
     sensor_R6 = ch7.voltage
     sensor_R5 = ch8.voltage
-    """
+    
     
 
-    #sensor_values = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]
+    sensor_values = [sensor_R1, sensor_R2, sensor_R3, sensor_R4, sensor_R5, sensor_R6, sensor_R7, sensor_R8]
     #sensor_values = [round(sensor_R2, 3), round(sensor_R3, 3), round(sensor_R4, 3), round(sensor_R1, 3), round(sensor_R8, 3), round(sensor_R7, 3), round(sensor_R6, 3), round(sensor_R5, 3)]
-    sensor_values, x_value, y_value, F_value = get_sensor_values_by_id(np.random.randint(0, 10))
+    #sensor_values, x_value, y_value, F_value = get_sensor_values_by_id(np.random.randint(0, 10))
     
     # Wenn nicht gedrückt wird, übergebe nicht sichtbaren Punkt
     total_sum = 0 
@@ -129,54 +128,29 @@ def get_sensor_values_by_id(file_id):
         # Rückgabe der Sensorwerte und X, Y als Tupel
         return sensor_values, x_value, y_value, F_value
 
-# Funktion zum Erstellen des Live-Scatterplots
-def calculate_data():
+# Funktion zum kontinuierlichen Senden der berechneten Werte an Pi4
+def stream_data_to_pi4():
     """
-    Sendet die Daten zum Pi4
+    Berechnet kontinuierlich Lastdaten mit dem KI-Modell und sendet sie direkt an Pi4.
     """
-    while True:
-        load_pos_x, load_pos_y, load_value, sensor_values = calc_loadpoint(model)
-        # Erzeuge die Daten für die CSV-Datei
-        data = [[load_pos_x, load_pos_y, load_value]]
-        # Schreibe die Daten in die CSV-Datei
-        with open(FILE_PATH, 'w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerows(data)
-        print(f"Data saved to {FILE_PATH}")
-        #time.sleep(1)
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)  # 👈 WICHTIG
+            s.connect((DEST_IP, PORT))
+            print(f"📡 Verbunden mit Pi4 ({DEST_IP}:{PORT})")
 
-# Funktion zur Dateiüberwachung und Senden per TCP
-def send_file_to_pi4():
-    """
-    Überwacht die Datei und sendet sie bei Änderungen an Pi 4
-    """
-    last_mtime = None  # Speichert letzte Änderungszeit
+            while True:
+                load_pos_x, load_pos_y, load_value, sensor_values = calc_loadpoint(model)
+                data_line = f"{load_pos_x},{load_pos_y},{load_value}\n"
+                s.sendall(data_line.encode('utf-8'))
+                print(f"📤 Gesendet an Pi4: {data_line.strip()}")
+                time.sleep(0.01)
+    except Exception as e:
+        print(f"❌ Verbindung zu Pi4 fehlgeschlagen: {e}")
 
-    while True:
-        if not os.path.exists(FILE_PATH):
-            print(f"Datei {FILE_PATH} nicht gefunden!")
-            time.sleep(1)
-            continue
-
-        mtime = os.path.getmtime(FILE_PATH)
-        if mtime != last_mtime:  # Falls die Datei geändert wurde
-            print(f"Datei geändert → Senden an {DEST_IP}...")
-
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-                client_socket.connect((DEST_IP, PORT))
-                with open(FILE_PATH, "rb") as f:
-                    client_socket.sendall(f.read())
-
-            last_mtime = mtime
-
-        #time.sleep(0.1)  # Kurze Pause zur CPU-Entlastung
-
-# Starte beide Funktionen in separaten Threads
-thread1 = threading.Thread(target=calculate_data, daemon=True)
-thread2 = threading.Thread(target=send_file_to_pi4, daemon=True)
-
-thread1.start()
-thread2.start()
+# Starte das Streaming in einem separaten Thread
+stream_thread = threading.Thread(target=stream_data_to_pi4, daemon=True)
+stream_thread.start()
 
 # Hauptthread läuft weiter, um `CTRL + C` abzufangen
 try:
