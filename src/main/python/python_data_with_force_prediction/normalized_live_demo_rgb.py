@@ -68,7 +68,7 @@ def calc_loadpoint(model):
     total_sum = 0 
     for spannung in sensor_values:
        total_sum += spannung
-    if total_sum > 26.5:
+    if total_sum > 25.5:
        return 10000, 10000, 0, sensor_values
     
     #### Normalisierung der Strain Listen
@@ -141,7 +141,7 @@ def stream_data_to_pi4():
 
             while True:
                 load_pos_x, load_pos_y, load_value, sensor_values = calc_loadpoint(model)
-                data_line = f"{load_pos_x},{load_pos_y},{load_value}\n"
+                data_line = f"{load_pos_x},{load_pos_y},{load_value},{sensor_values[0]},{sensor_values[1]},{sensor_values[2]},{sensor_values[3]},{sensor_values[4]},{sensor_values[5]},{sensor_values[6]},{sensor_values[7]}\n"
                 s.sendall(data_line.encode('utf-8'))
                 print(f"📤 Gesendet an Pi4: {data_line.strip()}")
                 time.sleep(0.01)

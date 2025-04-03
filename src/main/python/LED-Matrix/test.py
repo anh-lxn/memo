@@ -3,8 +3,9 @@ import math
 import time
 import random
 from PIL import Image
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
+import socket
+import threading
+from queue import Queue
 
 
 # ---------------- Matrix Setup ----------------
@@ -159,7 +160,22 @@ def calculate_xy_respect_to_width(width):
     
     return x_offset, y_offset
 
+def map_value(val, from_min, from_max, to_min, to_max):
+    return (val - from_min) / (from_max - from_min) * (to_max - to_min) + to_min
 
+def transform_coords(x2, y2):
+    x1 = map_value(x2, -290, 290, 0, 255)
+    y1 = map_value(y2, -290, 290, 0, 255)
+    x1 = 255 - x1
+    y1 = 255 - y1
+    return int(x1), int(y1)
+
+def radial_falloff(y, x, y0, x0, max_radius=140):
+    dx = x - x0
+    dy = y - y0
+    r = math.sqrt(dx**2 + dy**2)
+    value = max(0.0, 1.0 - (r / max_radius))
+    return value
 
 # ---------------- Text Setup ----------------
 font_header = graphics.Font()
@@ -195,6 +211,7 @@ x0 = 60 # Mittelpunkt X-Koordinate
 y0 = 200 # Mittelpunkt Y-Koordinate
 sigma = 50
 direction = -1
+
 
 try:
     while True:
