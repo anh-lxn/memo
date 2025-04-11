@@ -34,7 +34,7 @@ Um den Demonstrator erfolgreich zu starten, müssen drei Schritte in der richtig
 ### 1. Kalibrierung der Sensoren (`01_Calibration_of_Sensors.py`)
 Dieses Skript zeigt die aktuellen Spannugnswerte der 8 Sensoren an. Vor dem Start des Systems sollten die Sensoren **manuell kalibriert** werden:
 
-- Öffne ein Terminal und starte das Kalibrierungsskript:
+- Öffne ein Terminal auf dem Pi5 und starte das Kalibrierungsskript:
   ```
   cd /home/pi/Documents/Memo/git/memo/src/main/python/Demonstration/LED_DEMO
   /home/pi/Documents/Memo/git/memo/src/venv/bin/python 01_Calibration_of_Sensors.py 
@@ -57,11 +57,20 @@ Dieses Shell-Skript baut eine SSH-Verbindung vom Pi5 zum Pi4 auf und startet dor
 ### 3. Start des KI-Modells auf dem Pi5 (03_Start_Model.sh)
 Sobald der Pi4 bereit ist, kann das KI-Modell auf dem Pi5 gestartet werden:
 
-- Im gleichen Terminal ausführen: 
+- Ein neues Terminal auf dem Pi5 öffnen und ausführen: 
   ```
+  cd /home/pi/Documents/Memo/git/memo/src/main/python/Demonstration/LED_DEMO
   ./03_Start_Model.sh
   ```
 - Das Skript führt das trainierte Modell aus, berechnet die Lastpunkte (x, y) sowie die Kraft in Newton basierend auf den Sensorwerten und sendet die Ergebnisse an den Pi4 zur Darstellung auf der LED-Matrix.
+
+
+### 4. Beenden des Demonstrators
+
+Um den Demonstrator zu beenden, genügt es, in beiden geöffneten Terminalfenstern die folgende Tastenkombination zu drücken:
+**STRG + C**
+Dadurch werden die aktuell laufenden Python-Skripte auf dem Pi4 und Pi5 sauber beendet.
+Wenn du den Demonstrator erneut starten möchtest, beginne bitte wieder bei **Schritt 1** mit der Kalibrierung der Sensoren.
 
 ### Wichtige Hinweise und mögliche Probleme
 
