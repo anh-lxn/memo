@@ -225,84 +225,91 @@ def start_led_matrix():
 
     def render_loop():
         bar_value = 0
+        canvas = matrix.CreateFrameCanvas()
         while True:
-            if not data_queue.empty():
-                while not data_queue.empty():
-                    x, y, f, *sensor_values = data_queue.get()
-                canvas = matrix.CreateFrameCanvas()
-                x_led, y_led = transform_coords(x, y)
+            try:
+                canvas.Clear()
+                if not data_queue.empty():
+                    while not data_queue.empty():
+                        x, y, f, *sensor_values = data_queue.get()
+                    
+                    x_led, y_led = transform_coords(x, y)
 
-                #print(f"X: {round(x, 1)}, Y: {round(y, 1)}")
-                #print(f"X_NEU: {x_led}, Y_NEU: {y_led}")
+                    #print(f"X: {round(x, 1)}, Y: {round(y, 1)}")
+                    #print(f"X_NEU: {x_led}, Y_NEU: {y_led}")
 
-                # Heatmap
-                for yi in range(AREA_HEATMAP[1], AREA_HEATMAP[3]):
-                    for xi in range(AREA_HEATMAP[0], AREA_HEATMAP[2]):                        
-                        value = radial_falloff(xi, yi, x_led, y_led, max_radius=150)
-                        value = min(1.0, (value**0.9))
-                        color = heatmap_color(value)
-                        canvas.SetPixel(xi, yi, *color)
+                    # Heatmap
+                    for yi in range(AREA_HEATMAP[1], AREA_HEATMAP[3]):
+                        for xi in range(AREA_HEATMAP[0], AREA_HEATMAP[2]):                        
+                            value = radial_falloff(xi, yi, x_led, y_led, max_radius=150)
+                            value = min(1.0, (value**0.9))
+                            color = heatmap_color(value)
+                            canvas.SetPixel(xi, yi, *color)
 
-                # Sensoren
-                color_sensoren = (13, 205, 216)
-                
-                for name, (x, y) in sensors.items():
-                    draw_rotated_rectangle_polygon(canvas, x, y, width=10, height=5, center_x=64+32, center_y=64+64+32, color=(1, 36, 49))
+                    # Sensoren
+                    color_sensoren = (13, 205, 216)
+                    
+                    for name, (x, y) in sensors.items():
+                        draw_rotated_rectangle_polygon(canvas, x, y, width=10, height=5, center_x=64+32, center_y=64+64+32, color=(1, 36, 49))
 
-                    idx = int(name[1]) - 1  # "S1" → 0, "S2" → 1, ...
-                    max_val = sensor_max_values[name]
-                    level = 10 - round((sensor_values[idx] / max_val) * 10)
-                    level = max(0, min(level, 10))  # Clamp to 0..10
-                    x_offset, y_offset = calculate_xy_respect_to_width(level)
+                        idx = int(name[1]) - 1  # "S1" → 0, "S2" → 1, ...
+                        max_val = sensor_max_values[name]
+                        level = 10 - round((sensor_values[idx] / max_val) * 10)
+                        level = max(0, min(level, 10))  # Clamp to 0..10
+                        x_offset, y_offset = calculate_xy_respect_to_width(level)
 
-                    if name == "S1":
-                        draw_rotated_rectangle_polygon(canvas, x - x_offset, y + y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
-                    elif name == "S2":
-                        draw_rectangle(canvas, x-5, y-2, width=level, height=4, color=color_sensoren, allign="right")
-                    elif name == "S3":
-                        draw_rotated_rectangle_polygon(canvas, x - x_offset, y - y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
-                    elif name == "S4":
-                        draw_rectangle(canvas, x-3, y-5, width=5, height=level, color=color_sensoren, allign="right")
-                    elif name == "S5":
-                        draw_rotated_rectangle_polygon(canvas, x + x_offset, y - y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
-                    elif name == "S6":
-                        draw_rectangle(canvas, x+5, y+2, width=level, height=4, color=color_sensoren, allign="left")
-                    elif name == "S7":
-                        draw_rotated_rectangle_polygon(canvas, x + x_offset, y + y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
-                    elif name == "S8":
-                        draw_rectangle(canvas, x+2, y+5, width=5, height=level, color=color_sensoren, allign="left")
+                        if name == "S1":
+                            draw_rotated_rectangle_polygon(canvas, x - x_offset, y + y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
+                        elif name == "S2":
+                            draw_rectangle(canvas, x-5, y-2, width=level, height=4, color=color_sensoren, allign="right")
+                        elif name == "S3":
+                            draw_rotated_rectangle_polygon(canvas, x - x_offset, y - y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
+                        elif name == "S4":
+                            draw_rectangle(canvas, x-3, y-5, width=5, height=level, color=color_sensoren, allign="right")
+                        elif name == "S5":
+                            draw_rotated_rectangle_polygon(canvas, x + x_offset, y - y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
+                        elif name == "S6":
+                            draw_rectangle(canvas, x+5, y+2, width=level, height=4, color=color_sensoren, allign="left")
+                        elif name == "S7":
+                            draw_rotated_rectangle_polygon(canvas, x + x_offset, y + y_offset, width=level, height=5, center_x=64+32, center_y=64+64+32, color=color_sensoren)
+                        elif name == "S8":
+                            draw_rectangle(canvas, x+2, y+5, width=5, height=level, color=color_sensoren, allign="left")
 
-                # Text Header
-                graphics.DrawText(canvas, font_header, 5, 25, text_color, "KI-basierte Lokalisie-")
-                graphics.DrawText(canvas, font_header, 5, 40, text_color, "rung von Punktlasten")
-                graphics.DrawText(canvas, font_header, 5, 55, text_color, "auf Textilmembran")
-                
-                # Text Balken
-                graphics.DrawText(canvas, font_balken, 235, 165, text_color, "10N")
-                graphics.DrawText(canvas, font_balken, 200, 165, text_color, "-")
-                graphics.DrawText(canvas, font_balken, 235, 75, text_color, "20N")
-                graphics.DrawText(canvas, font_balken, 200, 75, text_color, "-")
+                    # Text Header
+                    graphics.DrawText(canvas, font_header, 5, 25, text_color, "KI-basierte Lokalisie-")
+                    graphics.DrawText(canvas, font_header, 5, 40, text_color, "rung von Punktlasten")
+                    graphics.DrawText(canvas, font_header, 5, 55, text_color, "auf Textilmembran")
+                    
+                    # Text Balken
+                    graphics.DrawText(canvas, font_balken, 235, 165, text_color, "10N")
+                    graphics.DrawText(canvas, font_balken, 200, 165, text_color, "-")
+                    graphics.DrawText(canvas, font_balken, 235, 75, text_color, "20N")
+                    graphics.DrawText(canvas, font_balken, 200, 75, text_color, "-")
 
-                # Balken
-                bar_value = f/20.0 # 0.00 < bar_value < 1.00 
-                bar_value = 1.0 if bar_value > 1.0 else bar_value
-                bar_height = int((AREA_BALKEN[3] - AREA_BALKEN[1]) * bar_value)
-                for y in range(AREA_BALKEN[3] - bar_height, AREA_BALKEN[3]):
-                    for x in range(AREA_BALKEN[0], AREA_BALKEN[2]):
-                        canvas.SetPixel(x, y, 13, 205, 216) 
+                    # Balken
+                    bar_value = f/20.0 # 0.00 < bar_value < 1.00 
+                    bar_value = 1.0 if bar_value > 1.0 else bar_value
+                    bar_height = int((AREA_BALKEN[3] - AREA_BALKEN[1]) * bar_value)
+                    for y in range(AREA_BALKEN[3] - bar_height, AREA_BALKEN[3]):
+                        for x in range(AREA_BALKEN[0], AREA_BALKEN[2]):
+                            canvas.SetPixel(x, y, 13, 205, 216) 
 
 
-                # ITM-Logo
-                for y in range(image.height):
-                    for x in range(image.width):
-                        r, g, b = image.getpixel((x, y))
-                        if is_logo_pixel(r, g, b):
-                            canvas.SetPixel(x + AREA_LOGO[0], y + AREA_LOGO[1] - 5, 255, 255, 255)
-                        else: # Kein Logo Pixel
-                            pass
+                    # ITM-Logo
+                    for y in range(image.height):
+                        for x in range(image.width):
+                            r, g, b = image.getpixel((x, y))
+                            if is_logo_pixel(r, g, b):
+                                canvas.SetPixel(x + AREA_LOGO[0], y + AREA_LOGO[1] - 5, 255, 255, 255)
+                            else: # Kein Logo Pixel
+                                pass
 
-                # Refresh Bild
-                canvas = matrix.SwapOnVSync(canvas)
+                    # Refresh Bild
+                    canvas = matrix.SwapOnVSync(canvas)
+
+            except Exception as e:
+                print("⚠️ Fehler im Render-Loop:", e)
+            time.sleep(0.01) # Entlastung der CPU
         
     def network_loop():
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
@@ -326,8 +333,8 @@ def start_led_matrix():
                             parts = line.strip().split(",")
                             if len(parts) == 11:
                                 x, y, f = map(float, parts[:3])
-                                sensors = list(map(float, parts[3:]))
-                                data_queue.put((x, y, f, *sensors))
+                                sensors_values = list(map(float, parts[3:]))
+                                data_queue.put((x, y, f, *sensors_values))
                             else:
                                 print(f"⚠️ Ungültiges Format (brauche 11 Werte): {line}")
                         except ValueError:
