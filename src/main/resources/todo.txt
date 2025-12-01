@@ -1,4 +1,0 @@
-- lineare interpolation messwerte 10 N, 15 N nd 20 N
-- KI mit 3. Output trainieren
-- KI optimierung Hyperparameter
-- Messwerte auswerten 02_...

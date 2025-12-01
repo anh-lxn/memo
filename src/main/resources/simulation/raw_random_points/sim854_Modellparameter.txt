@@ -1,2 +1,0 @@
-# load x location in mm,load y location in mm,load z location in mm,load in N
--1.623459200000000067e+02,-3.398555999999999813e+02,0.000000000000000000e+00,5.000000000000000000e+01
