@@ -4,6 +4,8 @@ This project provides a Python-based GUI for visualizing the real-time load posi
 A Raspberry Pi reads sensor values via Adafruit ADS1115 ADC converters.
 A pre-trained AI model predicts the current load position and displays it in an interactive plot.oad position on the membrane depending on the current sensor values and shows these in a plot. The project also contains the scripts for recording the training data and training the AI model.
 
+---
+
 ## Contact Persons GUI / Demonstrator
 - Le Xuan, Hung (SMA) -> Project information
 - Koppelmann, Karl (SMA) -> Project information, design demonstrator
@@ -11,6 +13,8 @@ A pre-trained AI model predicts the current load position and displays it in an 
 - Schmidt, Florian (SMA) -> Software Raspberry, GUI
 - Baehr, Thomas (SMA) -> Circuits, Electronics
 - Le Xuan, Anh (SMA) -> AI Model, Data Processing, Software GUI
+
+---
 
 ## Results form Training the AI Model
 ### Model Losses for Different Input Variations ([Notebook](src/main/python/model_input_variation.ipynb))
