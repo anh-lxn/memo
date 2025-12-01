@@ -18,6 +18,7 @@ This comparison shows that the force-only model (F) achieves by far the lowest t
 The XY model has significantly higher loss due to the nonlinear mapping from sensor values to position.
 The combined XYF model performs worst, demonstrating that predicting both position and force simultaneously introduces competing objectives that degrade performance.
 So we choose to use separate models for position (XY) and force (F) in the final demonstrator.
+
 ![input_losses](figs/test_losses_input_variation.png)
 
 ---
