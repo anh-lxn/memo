@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
+
 class MembraneModel(nn.Module):
     def __init__(self, output_dim=3):
         super().__init__()
@@ -60,7 +61,7 @@ class Trainer:
         return loss.item()
 
     def fit(self, train_loader, val_loader, epochs=100, print_status=False):
-        print("Starting training...")
+        #print("Starting training...")
         for epoch in range(epochs):
             batch_train_losses = []
 
@@ -216,7 +217,7 @@ class ModelPredictor:
 
     @torch.no_grad()
     def predict(self, input_data):
-        norm_input = self.min_max_normalize(input_data)
-        input_tensor = torch.tensor(norm_input, dtype=torch.float32).to(self.device)
+        #norm_input = self.min_max_normalize(input_data)
+        input_tensor = torch.tensor(input_data, dtype=torch.float32).to(self.device)
         output_tensor = self.model(input_tensor)
         return output_tensor.cpu().numpy()

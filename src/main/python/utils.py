@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import torch as pt
 from torch.utils.data import TensorDataset, DataLoader
 from sklearn.model_selection import train_test_split
+import numpy as np
 
 def get_data(file_path) -> pd.DataFrame:
   data = pd.read_csv(file_path)
@@ -15,8 +16,10 @@ def get_data(file_path) -> pd.DataFrame:
 
 def min_max_normalize(data: pd.DataFrame) -> pd.DataFrame:
   data_filtered = data.iloc[:, -8:]
-  mins = data_filtered.min()
-  maxs = data_filtered.max()
+  #mins = data_filtered.min()
+  #maxs = data_filtered.max()
+  mins = 0.0
+  maxs = 4.0
   norm_data_filtered = (data_filtered - mins) / (maxs - mins)
   norm_data_filtered = 2 * norm_data_filtered - 1  # Scale to [-1, 1]
   norm_data = data.copy()
@@ -93,7 +96,25 @@ def set_seed(seed=42):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     os.environ["PYTHONHASHSEED"] = str(seed)
+
+def plot_grid_points(data: pd.DataFrame, force: int = 15):
+    data_filtered = data[data['F'] == force][['X', 'Y']].reset_index(drop=True)
+    plt.figure(figsize=(6,6))
+    plt.scatter(data_filtered['X'], data_filtered['Y'], c='blue', marker='o')
+    plt.title(f'Grid Points at Force {force}N')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.xlim(-290 - 20, 290 + 20)
+    plt.ylim(-290 - 20, 290 + 20)
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.xticks(np.linspace(-290, 290, 11))
+    plt.yticks(np.linspace(-290, 290, 11))
+    plt.gca().set_axisbelow(True)
+    plt.grid(True)
+    plt.show()
+
