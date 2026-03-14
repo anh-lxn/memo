@@ -1,19 +1,19 @@
 {
     "mse": {
-        "test_loss_xy": 56.770761489868164,
-        "test_loss_f": 0.2393568977713585,
+        "test_loss_xy": 72.61426544189453,
+        "test_loss_f": 0.6449562311172485,
         "model_xy_path": "../../../models/loss_fn_variation/model_xy_mse.pt",
         "model_f_path": "../../../models/loss_fn_variation/model_f_mse.pt"
     },
     "l1": {
-        "test_loss_xy": 5.604146718978882,
-        "test_loss_f": 1.1472725868225098,
+        "test_loss_xy": 7.003000974655151,
+        "test_loss_f": 0.45675259828567505,
         "model_xy_path": "../../../models/loss_fn_variation/model_xy_l1.pt",
         "model_f_path": "../../../models/loss_fn_variation/model_f_l1.pt"
     },
     "smooth_l1": {
-        "test_loss_xy": 6.9955549240112305,
-        "test_loss_f": 0.17138661444187164,
+        "test_loss_xy": 4.267630577087402,
+        "test_loss_f": 0.11003147810697556,
         "model_xy_path": "../../../models/loss_fn_variation/model_xy_smooth_l1.pt",
         "model_f_path": "../../../models/loss_fn_variation/model_f_smooth_l1.pt"
     }
