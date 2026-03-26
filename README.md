@@ -90,3 +90,10 @@ source src/venv/bin/activate   # (Linux/macOS)
 # Install required dependencies
 pip install -r src/requirements.txt
 ```
+
+### Start the acquisition GUI from the repository root
+With the virtual environment activated, you can start the GUI directly from the project root:
+
+```powershell
+python .\run_acquisition_gui.py
+```

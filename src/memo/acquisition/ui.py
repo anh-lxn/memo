@@ -21,6 +21,11 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+if __package__ in {None, ""}:
+    src_dir = Path(__file__).resolve().parents[2]
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+
 from memo.acquisition.readers import CsvReplayReader, MockReader
 from memo.acquisition.recorder import CsvSampleRecorder
 from memo.types import LabeledSample
