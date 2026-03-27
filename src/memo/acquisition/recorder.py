@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -8,6 +9,7 @@ from memo.types import LabeledSample
 
 
 CSV_COLUMNS = ["timestamp", "X", "Y", "F"] + [f"Sensor R{i}" for i in range(1, 9)]
+RAW_CSV_COLUMNS = ["date", "time", "X", "Y", "F"] + [f"Sensor R{i}" for i in range(1, 9)]
 
 
 class CsvSampleRecorder:
@@ -105,3 +107,43 @@ class CsvSampleRecorder:
                 except (KeyError, TypeError, ValueError):
                     continue
         return points
+
+
+class RawSampleFileWriter:
+    """Writes each recorded sample to its own CSV file inside data/raw."""
+
+    file_pattern = re.compile(r"^(?P<index>\d{4})_.*N\.csv$")
+
+    def __init__(self, output_dir):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _next_index(self) -> int:
+        max_index = 0
+        for csv_path in self.output_dir.glob("*.csv"):
+            match = self.file_pattern.match(csv_path.name)
+            if match:
+                max_index = max(max_index, int(match.group("index")))
+        return max_index + 1
+
+    def write_sample(self, sample: LabeledSample) -> Path:
+        timestamp = sample.timestamp or datetime.utcnow()
+        force_value = int(round(float(sample.force)))
+        file_path = self.output_dir / f"{self._next_index():04d}_{force_value}N.csv"
+
+        row = {
+            "date": timestamp.date().isoformat(),
+            "time": timestamp.replace(microsecond=0).time().isoformat(),
+            "X": float(sample.x),
+            "Y": float(sample.y),
+            "F": float(sample.force),
+        }
+        for index, value in enumerate(sample.sensors, start=1):
+            row[f"Sensor R{index}"] = float(value)
+
+        with file_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=RAW_CSV_COLUMNS)
+            writer.writeheader()
+            writer.writerow(row)
+
+        return file_path

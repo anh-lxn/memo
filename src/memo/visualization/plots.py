@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from collections import deque
 import math
+from datetime import datetime
 
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch, Rectangle
+from matplotlib.patches import Circle, Patch, Polygon, Rectangle
 from matplotlib.transforms import Affine2D
 from PyQt5.QtWidgets import QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout
 
@@ -38,6 +40,81 @@ class LiveSensorPlot(QWidget):
         self.canvas.draw_idle()
 
 
+class LiveForcePlot(QWidget):
+    def __init__(self, history_seconds: float = 5.0, parent=None):
+        super().__init__(parent)
+        self.history_seconds = history_seconds
+        self.timestamps: deque[datetime] = deque()
+        self.values: deque[float] = deque()
+        self.start_time: datetime | None = None
+        self.current_time: datetime | None = None
+        self.stream_active = False
+        self.figure = Figure(figsize=(5, 3))
+        self.canvas = FigureCanvas(self.figure)
+        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.axis = self.figure.add_subplot(111)
+        self._build_layout()
+        self._redraw()
+
+    def _build_layout(self):
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.canvas)
+
+    def append_value(self, timestamp: datetime, value: float):
+        if self.start_time is None:
+            self.start_time = timestamp
+        self.current_time = timestamp
+        self.timestamps.append(timestamp)
+        self.values.append(float(value))
+        cutoff = timestamp.timestamp() - self.history_seconds
+        while self.timestamps and self.timestamps[0].timestamp() < cutoff:
+            self.timestamps.popleft()
+            self.values.popleft()
+        self._redraw()
+
+    def advance_time(self, timestamp: datetime):
+        if self.start_time is None:
+            self.start_time = timestamp
+        self.current_time = timestamp
+        cutoff = timestamp.timestamp() - self.history_seconds
+        while self.timestamps and self.timestamps[0].timestamp() < cutoff:
+            self.timestamps.popleft()
+            self.values.popleft()
+        self._redraw()
+
+    def set_stream_active(self, active: bool):
+        self.stream_active = bool(active)
+        self._redraw()
+
+    def _redraw(self):
+        self.axis.clear()
+        self.axis.set_title("Live Plot Kraft ueber Zeit")
+        self.axis.set_xlabel("Zeit seit Start [s]")
+        self.axis.set_ylabel("Kraft [N]")
+        self.axis.set_ylim(0.0, 25.0)
+        self.axis.set_yticks(np.arange(0.0, 25.0 + 0.001, 2.5))
+
+        reference_time = self.current_time.timestamp() if self.current_time is not None else None
+        start_time = self.start_time.timestamp() if self.start_time is not None else None
+
+        if self.timestamps and reference_time is not None and start_time is not None:
+            x_values = np.array([timestamp.timestamp() - start_time for timestamp in self.timestamps], dtype=float)
+            y_values = np.array(self.values, dtype=float)
+            trace_color = "#0f8b6d" if self.stream_active else "#b42318"
+            self.axis.plot(x_values, y_values, color=trace_color, linewidth=2.0)
+            self.axis.scatter(x_values[-1:], y_values[-1:], color=trace_color, s=28, zorder=3)
+            elapsed = max(0.0, reference_time - start_time)
+            half_window = self.history_seconds / 2.0
+            window_start = max(0.0, elapsed - half_window)
+            window_end = window_start + self.history_seconds
+            self.axis.set_xlim(window_start, window_end)
+        else:
+            self.axis.set_xlim(0.0, self.history_seconds)
+
+        self.axis.grid(True, linestyle="--", linewidth=0.5, alpha=0.5)
+        self.canvas.draw_idle()
+
+
 class XYGridPlot(QWidget):
     def __init__(
         self,
@@ -45,8 +122,8 @@ class XYGridPlot(QWidget):
         y_limits,
         grid_spacing: float,
         corner_marker_size: float | None = None,
-        membrane_size: float = 350.0,
-        sensor_size: tuple[float, float] = (18.0, 10.0),
+        membrane_size: float = 450.0 * math.sqrt(2.0),
+        sensor_size: tuple[float, float] = (18.0, 33.0),
         sensor_definitions: list[dict[str, float | str]] | None = None,
         on_point_selected=None,
         parent=None,
@@ -59,17 +136,17 @@ class XYGridPlot(QWidget):
         self.membrane_size = membrane_size
         self.sensor_size = sensor_size
         self.sensor_definitions = sensor_definitions or [
-            {"name": "R1", "x": -110.0, "y": 110.0, "rotation": 0.0},
-            {"name": "R2", "x": 0.0, "y": 120.0, "rotation": 0.0},
-            {"name": "R3", "x": 110.0, "y": 110.0, "rotation": 0.0},
-            {"name": "R4", "x": -120.0, "y": 0.0, "rotation": 90.0},
-            {"name": "R5", "x": 120.0, "y": 0.0, "rotation": 90.0},
-            {"name": "R6", "x": -110.0, "y": -110.0, "rotation": 0.0},
-            {"name": "R7", "x": 0.0, "y": -120.0, "rotation": 0.0},
-            {"name": "R8", "x": 110.0, "y": -110.0, "rotation": 0.0},
+            {"name": "R1", "x": -30.0, "y": 200.0, "rotation": 0.0},
+            {"name": "R2", "x": 45.0, "y": 182.0, "rotation": 90.0},
+            {"name": "R3", "x": -200.0, "y": 30.0, "rotation": 90.0},
+            {"name": "R4", "x": -182.0, "y": -45.0, "rotation": 0.0},
+            {"name": "R5", "x": 182.0, "y": 45.0, "rotation": 0.0},
+            {"name": "R6", "x": 200.0, "y": -30.0, "rotation": 90.0},
+            {"name": "R7", "x": -45.0, "y": -182.0, "rotation": 90.0},
+            {"name": "R8", "x": 30.0, "y": -200.0, "rotation": 0.0},
         ]
         self.on_point_selected = on_point_selected
-        self.figure = Figure(figsize=(5, 4))
+        self.figure = Figure(figsize=(5, 4)) 
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.axis = self.figure.add_subplot(111)
@@ -85,41 +162,122 @@ class XYGridPlot(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.canvas)
 
-    def _draw_corner_markers(self):
-        half_size = self.corner_marker_size / 2.0
-        corners = [
-            (self.x_limits[0], self.y_limits[1], 1.0),
-            (self.x_limits[1], self.y_limits[0], 1.0),
-            (self.x_limits[1], self.y_limits[1], 0.3),
-            (self.x_limits[0], self.y_limits[0], 0.3),
+    def _membrane_vertices(self) -> list[tuple[float, float]]:
+        half_size = self.membrane_size / 2.0
+        return [
+            (0.0, half_size),
+            (half_size, 0.0),
+            (0.0, -half_size),
+            (-half_size, 0.0),
         ]
-        for center_x, center_y, alpha in corners:
+
+    def _eyelet_positions(self) -> list[tuple[float, float]]:
+        ring_scale = 0.9
+        return [(corner_x * ring_scale, corner_y * ring_scale) for corner_x, corner_y in self._membrane_vertices()]
+
+    def _point_within_eyelet_bounds(self, point: tuple[float, float]) -> bool:
+        x_value, y_value = float(point[0]), float(point[1])
+        eyelet_positions = self._eyelet_positions()
+        diamond_half_extent = max(abs(x) + abs(y) for x, y in eyelet_positions)
+        return abs(x_value) + abs(y_value) <= diamond_half_extent + 1e-9
+
+    def _draw_corner_markers(self):
+        profile_size = 30.0
+        profile_offset = 20.0
+        corners = [
+            ("top", 0.0, (self.membrane_size / 2.0) + profile_offset, 1.0),
+            ("bottom", 0.0, -(self.membrane_size / 2.0) - profile_offset, 1.0),
+            ("left", -(self.membrane_size / 2.0) - profile_offset, 0.0, 0.3),
+            ("right", (self.membrane_size / 2.0) + profile_offset, 0.0, 0.3),
+        ]
+        for _, center_x, center_y, alpha in corners:
             marker = Rectangle(
-                (center_x - half_size, center_y - half_size),
-                self.corner_marker_size,
-                self.corner_marker_size,
+                (center_x - (profile_size / 2.0), center_y - (profile_size / 2.0)),
+                profile_size,
+                profile_size,
                 facecolor="black",
                 edgecolor="black",
                 alpha=alpha,
                 linewidth=1.0,
                 clip_on=False,
-                zorder=2,
+                zorder=2.5,
             )
             self.axis.add_patch(marker)
 
     def _draw_membrane(self):
-        half_size = self.membrane_size / 2.0
-        membrane = Rectangle(
-            (-half_size, -half_size),
-            self.membrane_size,
-            self.membrane_size,
+        membrane = Polygon(
+            self._membrane_vertices(),
+            closed=True,
             facecolor="#4a90e2",
             edgecolor="#1f4f82",
             alpha=0.18,
-            linewidth=1.5,
+            linewidth=1.8,
             zorder=0,
         )
         self.axis.add_patch(membrane)
+        return membrane
+
+    def _draw_membrane_grid(self, membrane_patch):
+        half_size = self.membrane_size / 2.0
+        sample_x_positions = sorted({point[0] for point in self.test_points})
+        sample_y_positions = sorted({point[1] for point in self.test_points})
+
+        for x_value in sample_x_positions:
+            line = self.axis.plot(
+                [x_value, x_value],
+                [-half_size, half_size],
+                color="#1f4f82",
+                linewidth=0.9,
+                alpha=0.7,
+                zorder=0.8,
+            )[0]
+            line.set_clip_path(membrane_patch)
+
+        for y_value in sample_y_positions:
+            line = self.axis.plot(
+                [-half_size, half_size],
+                [y_value, y_value],
+                color="#1f4f82",
+                linewidth=0.9,
+                alpha=0.7,
+                zorder=0.8,
+            )[0]
+            line.set_clip_path(membrane_patch)
+
+        self._draw_sample_axes(membrane_patch)
+
+    def _draw_sample_axes(self, membrane_patch):
+        if not self.test_points:
+            return
+
+        vertical_points = [point for point in self.test_points if math.isclose(point[0], 0.0, abs_tol=1e-9)]
+
+        if vertical_points:
+            min_y = min(point[1] for point in vertical_points)
+            max_y = max(point[1] for point in vertical_points)
+            line = self.axis.plot(
+                [0.0, 0.0],
+                [min_y, max_y],
+                color="black",
+                linewidth=1.6,
+                linestyle=(0, (4, 3)),
+                alpha=0.8,
+                zorder=1.2,
+            )[0]
+            line.set_clip_path(membrane_patch)
+
+    def _draw_eyelets(self):
+        ring_radius = 7.0
+        for corner_x, corner_y in self._eyelet_positions():
+            eyelet = Circle(
+                (corner_x, corner_y),
+                ring_radius,
+                facecolor="white",
+                edgecolor="#203548",
+                linewidth=1.8,
+                zorder=3.5,
+            )
+            self.axis.add_patch(eyelet)
 
     def _draw_sensors(self):
         sensor_width, sensor_height = self.sensor_size
@@ -139,7 +297,7 @@ class XYGridPlot(QWidget):
                 edgecolor="#7a4d00",
                 alpha=0.75,
                 linewidth=1.0,
-                zorder=1,
+                zorder=2,
             )
             sensor.set_transform(
                 Affine2D().rotate_deg_around(center_x, center_y, rotation) + self.axis.transData
@@ -151,9 +309,9 @@ class XYGridPlot(QWidget):
                 name,
                 ha="center",
                 va="center",
-                fontsize=8,
+                fontsize=7,
                 color="black",
-                zorder=2,
+                zorder=3,
             )
 
     def _grid_ticks(self, limits):
@@ -173,7 +331,9 @@ class XYGridPlot(QWidget):
         points = []
         for y_value in sorted(y_values, reverse=True):
             for x_value in sorted(x_values):
-                points.append((float(x_value), float(y_value)))
+                point = (float(x_value), float(y_value))
+                if abs(point[0]) + abs(point[1]) <= half_size + 1e-9 and self._point_within_eyelet_bounds(point):
+                    points.append(point)
         return points
 
     def _draw_test_points(self):
@@ -224,28 +384,47 @@ class XYGridPlot(QWidget):
         ]
         self.axis.legend(handles=handles, loc="center left", bbox_to_anchor=(1.02, 0.5), fontsize=8, framealpha=0.95, borderaxespad=0.0)
 
+    def _configure_axes(self):
+        tick_step = self.grid_spacing
+        x_ticks = np.arange(
+            math.ceil(self.x_limits[0] / tick_step) * tick_step,
+            self.x_limits[1] + (tick_step * 0.5),
+            tick_step,
+        )
+        y_ticks = np.arange(
+            math.ceil(self.y_limits[0] / tick_step) * tick_step,
+            self.y_limits[1] + (tick_step * 0.5),
+            tick_step,
+        )
+        self.axis.set_xticks(x_ticks)
+        self.axis.set_yticks(y_ticks)
+        self.axis.tick_params(axis="both", labelsize=8)
+        self.axis.set_xlabel("X [mm]")
+        self.axis.set_ylabel("Y [mm]")
+        self.axis.spines["left"].set_visible(True)
+        self.axis.spines["bottom"].set_visible(True)
+        self.axis.spines["left"].set_color("#54606e")
+        self.axis.spines["bottom"].set_color("#54606e")
+        self.axis.spines["left"].set_linewidth(1.0)
+        self.axis.spines["bottom"].set_linewidth(1.0)
+        self.axis.spines["top"].set_visible(False)
+        self.axis.spines["right"].set_visible(False)
+
     def _draw_grid(self):
         self.axis.clear()
         self.figure.subplots_adjust(right=0.78)
         self.axis.set_title("XY Draufsicht")
-        self.axis.set_xlabel("X")
-        self.axis.set_ylabel("Y")
         self.axis.set_xlim(*self.x_limits)
         self.axis.set_ylim(*self.y_limits)
-        self.axis.set_xticks(self._grid_ticks(self.x_limits))
-        self.axis.set_yticks(self._grid_ticks(self.y_limits))
-        self.axis.tick_params(axis="x", pad=12)
-        self.axis.tick_params(axis="y", pad=12)
-        self._draw_membrane()
+        self._configure_axes()
+
+        membrane_patch = self._draw_membrane()
+        self._draw_membrane_grid(membrane_patch)
         self._draw_sensors()
         self._draw_test_points()
-        self.axis.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.7)
-        if self.x_limits[0] <= 0 <= self.x_limits[1]:
-            self.axis.axvline(0, color="black", linewidth=0.8, alpha=0.5, zorder=1)
-        if self.y_limits[0] <= 0 <= self.y_limits[1]:
-            self.axis.axhline(0, color="black", linewidth=0.8, alpha=0.5, zorder=1)
         self.axis.set_aspect("equal", adjustable="box")
         self._draw_corner_markers()
+        self._draw_eyelets()
         self._add_legend()
         self.canvas.draw_idle()
 
