@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (
 from memo.acquisition.readers import CsvReplayReader, MockReader
 from memo.acquisition.recorder import CsvSampleRecorder
 from memo.types import LabeledSample
-from memo.visualization.plots import CalibrationStatusPanel, LiveSensorPlot, XYGridPlot
+from memo.acquisition.widgets import CalibrationStatusPanel, LiveSensorPlot, XYGridPlot
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
