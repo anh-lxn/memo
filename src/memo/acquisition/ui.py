@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -21,31 +22,47 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from memo.acquisition.readers import CsvReplayReader, MockReader
-from memo.acquisition.recorder import CsvSampleRecorder
+if __package__ in {None, ""}:
+    src_dir = Path(__file__).resolve().parents[2]
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+
+from memo.acquisition.readers import CsvReplayReader, MockReader, SerialException, SerialForceReader
+from memo.acquisition.recorder import CsvSampleRecorder, RawSampleFileWriter
 from memo.types import LabeledSample
-from memo.acquisition.widgets import CalibrationStatusPanel, LiveSensorPlot, XYGridPlot
+from memo.visualization.plots import CalibrationStatusPanel, LiveForcePlot, LiveSensorPlot, XYGridPlot
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT_DIR = PROJECT_ROOT / 'data' / 'recorded_samples'
-GRID_SPACING = 100
+RAW_OUTPUT_DIR = PROJECT_ROOT / 'data' / 'raw'
+GRID_SPACING = 40
 CORNER_MARKER_SIZE = 30
-OFFSET = 30
-X_LIMITS = (-350 / 2 - OFFSET, 350 / 2 + OFFSET)
-Y_LIMITS = (-350 / 2 - OFFSET, 350 / 2 + OFFSET)
+OFFSET = 50
+MEMBRANE_SIDE_LENGTH = 450.0
+MEMBRANE_DIAGONAL = MEMBRANE_SIDE_LENGTH * np.sqrt(2.0)
+X_LIMITS = (-MEMBRANE_DIAGONAL / 2 - OFFSET, MEMBRANE_DIAGONAL / 2 + OFFSET)
+Y_LIMITS = (-MEMBRANE_DIAGONAL / 2 - OFFSET, MEMBRANE_DIAGONAL / 2 + OFFSET)
 REFRESH_MS = 250
+FORCE_REFRESH_MS = 40
+FORCE_SERIAL_PORT = 'COM3'
+FORCE_SERIAL_BAUDRATE = 57600
+FORCE_STREAM_TIMEOUT_S = 0.5
 BASELINE_SENSOR_VALUES = np.array([0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000], dtype=float)
 CALIBRATION_TOLERANCE = 0.050
 
 
 class AcquisitionWindow(QMainWindow):
-    def __init__(self, reader, output_dir: Path):
+    def __init__(self, reader, output_dir: Path, force_port: str = FORCE_SERIAL_PORT, force_baudrate: int = FORCE_SERIAL_BAUDRATE):
         super().__init__()
         self.reader = reader
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.raw_writer = RawSampleFileWriter(RAW_OUTPUT_DIR)
+        self.force_reader = SerialForceReader(port=force_port, baudrate=force_baudrate)
         self.latest_frame = None
+        self.latest_force_value: float | None = None
+        self._force_reader_available = True
         self.is_sampling = False
         self.recorder: CsvSampleRecorder | None = None
 
@@ -53,11 +70,13 @@ class AcquisitionWindow(QMainWindow):
         self.resize(1920, 1080)
 
         self.live_plot = LiveSensorPlot()
+        self.force_plot = LiveForcePlot()
         self.grid_plot = XYGridPlot(
             x_limits=X_LIMITS,
             y_limits=Y_LIMITS,
             grid_spacing=GRID_SPACING,
             corner_marker_size=CORNER_MARKER_SIZE,
+            membrane_size=MEMBRANE_DIAGONAL,
             on_point_selected=self._update_point_selection,
         )
         self.calibration_panel = CalibrationStatusPanel(
@@ -87,9 +106,15 @@ class AcquisitionWindow(QMainWindow):
         self.count_label = QLabel('0 Punkte')
         self.file_label = QLabel('-')
         self.status_label = QLabel('Bereit')
+        self.force_port_label = QLabel(f'{FORCE_SERIAL_PORT} @ {FORCE_SERIAL_BAUDRATE}')
+        self.force_value_label = QLabel('-')
+        self.force_raw_label = QLabel('-')
+        self.force_reader_status_label = QLabel('Nicht gestartet')
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh_sensor_data)
+        self.force_timer = QTimer(self)
+        self.force_timer.timeout.connect(self._refresh_force_data)
 
         self.start_button.clicked.connect(self.toggle_sampling)
         self.calibrate_button.clicked.connect(self.toggle_calibration)
@@ -102,6 +127,13 @@ class AcquisitionWindow(QMainWindow):
         self._apply_styles()
         self._update_point_selection(self.grid_plot.get_active_point(), False)
         self._update_sample_status()
+        try:
+            self.force_reader.start()
+            self.force_reader_status_label.setText(self.force_reader.connection_info())
+        except (RuntimeError, SerialException, OSError) as exc:
+            self._force_reader_available = False
+            self.force_reader_status_label.setText(str(exc))
+        self.force_timer.start(FORCE_REFRESH_MS)
 
     def _build_ui(self):
         central = QWidget()
@@ -114,6 +146,7 @@ class AcquisitionWindow(QMainWindow):
         plots_layout = QHBoxLayout()
         plots_layout.setSpacing(14)
         plots_layout.addWidget(self.live_plot, stretch=3)
+        plots_layout.addWidget(self.force_plot, stretch=3)
         plots_layout.addWidget(self.grid_plot, stretch=4)
         main_layout.addLayout(plots_layout, stretch=4)
 
@@ -140,6 +173,14 @@ class AcquisitionWindow(QMainWindow):
         status_grid.addWidget(self.file_label, 2, 1)
         status_grid.addWidget(self._make_label_caption('Meldung'), 3, 0)
         status_grid.addWidget(self.status_label, 3, 1)
+        status_grid.addWidget(self._make_label_caption('Kraft COM'), 4, 0)
+        status_grid.addWidget(self.force_port_label, 4, 1)
+        status_grid.addWidget(self._make_label_caption('Kraft live'), 5, 0)
+        status_grid.addWidget(self.force_value_label, 5, 1)
+        status_grid.addWidget(self._make_label_caption('Rohdaten'), 6, 0)
+        status_grid.addWidget(self.force_raw_label, 6, 1)
+        status_grid.addWidget(self._make_label_caption('COM-Status'), 7, 0)
+        status_grid.addWidget(self.force_reader_status_label, 7, 1)
         info_layout.addLayout(status_grid)
         info_layout.addStretch(1)
 
@@ -416,6 +457,42 @@ class AcquisitionWindow(QMainWindow):
         self.live_plot.update_values(self.latest_frame.sensors)
         self.calibration_panel.set_live_values(self.latest_frame.sensors)
 
+    def _refresh_force_data(self):
+        now = datetime.utcnow()
+        self.force_plot.advance_time(now)
+        self.force_port_label.setText(f'{self.force_reader.port} @ {self.force_reader.baudrate}')
+        if not self._force_reader_available:
+            self.force_reader_status_label.setText('Deaktiviert nach Fehler')
+            self.force_plot.set_stream_active(False)
+            return
+        reader_error = self.force_reader.get_last_error()
+        if reader_error:
+            self._force_reader_available = False
+            self.status_label.setText(f'Kraftsensor nicht verfuegbar: {reader_error}')
+            self.force_reader_status_label.setText(reader_error)
+            self.force_raw_label.setText(self.force_reader.get_last_raw_text() or '-')
+            self.force_plot.set_stream_active(False)
+            return
+
+        force_value = self.force_reader.get_latest_force()
+        force_timestamp = self.force_reader.get_latest_force_timestamp()
+        stream_active = (
+            force_timestamp is not None
+            and (now - force_timestamp).total_seconds() <= FORCE_STREAM_TIMEOUT_S
+        )
+        self.force_plot.set_stream_active(stream_active)
+        if force_value is None:
+            self.force_raw_label.setText(self.force_reader.get_last_raw_text() or '-')
+            self.force_reader_status_label.setText(self.force_reader.connection_info())
+            return
+
+        self.latest_force_value = force_value
+        timestamp = self.latest_frame.timestamp if self.latest_frame is not None else now
+        self.force_plot.append_value(timestamp, force_value)
+        self.force_value_label.setText(f'{force_value:.3f} N')
+        self.force_raw_label.setText(self.force_reader.get_last_raw_text() or '-')
+        self.force_reader_status_label.setText(self.force_reader.connection_info())
+
     def save_sample(self):
         if not self._ensure_measurement_initialized(allow_resume=True, prompt_if_exists=True):
             return
@@ -439,10 +516,11 @@ class AcquisitionWindow(QMainWindow):
             metadata={'source': self.latest_frame.source},
         )
         row = self.recorder.append_sample(sample)
+        raw_file_path = self.raw_writer.write_sample(sample)
         self.grid_plot.mark_point_saved(active_point)
         self.count_label.setText(f'{self.recorder.sample_count} Punkte')
         self.status_label.setText(
-            f"Punkt aufgenommen: {row['timestamp']} | X={row['X']} | Y={row['Y']} | F={row['F']}"
+            f"Punkt aufgenommen: {row['timestamp']} | X={row['X']} | Y={row['Y']} | F={row['F']} | Raw: {raw_file_path.name}"
         )
         self._update_sample_status()
 
@@ -534,6 +612,9 @@ class AcquisitionWindow(QMainWindow):
 
         if self.is_sampling:
             self.timer.stop()
+        if self.force_timer.isActive():
+            self.force_timer.stop()
+        self.force_reader.close()
         event.accept()
 
 
@@ -547,6 +628,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='MeMo acquisition UI')
     parser.add_argument('--output-dir', default=str(OUTPUT_DIR), help='Ausgabeordner fuer Messungsdateien')
     parser.add_argument('--replay-csv', default=None, help='Optionales CSV fuer Replay statt MockReader')
+    parser.add_argument('--force-port', default=FORCE_SERIAL_PORT, help='Serieller Port fuer Kraftmessung')
+    parser.add_argument('--force-baudrate', type=int, default=FORCE_SERIAL_BAUDRATE, help='Baudrate fuer Kraftmessung')
     return parser.parse_args(argv)
 
 
@@ -554,7 +637,12 @@ def run_app(argv=None):
     args = parse_args(argv)
     app = QApplication(sys.argv if argv is None else [sys.argv[0], *argv])
     reader = build_reader(args.replay_csv)
-    window = AcquisitionWindow(reader=reader, output_dir=Path(args.output_dir))
+    window = AcquisitionWindow(
+        reader=reader,
+        output_dir=Path(args.output_dir),
+        force_port=args.force_port,
+        force_baudrate=args.force_baudrate,
+    )
     window.show()
     return app.exec_()
 
