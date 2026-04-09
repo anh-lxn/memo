@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
 import re
@@ -10,6 +11,17 @@ import numpy as np
 import pandas as pd
 
 from memo.types import SensorFrame
+
+try:
+    import board
+    import busio
+    import adafruit_ads1x15.ads1115 as ADS
+    from adafruit_ads1x15.analog_in import AnalogIn
+except ImportError:  # pragma: no cover - depends on Raspberry Pi environment
+    board = None
+    busio = None
+    ADS = None
+    AnalogIn = None
 
 try:
     import serial
@@ -33,6 +45,82 @@ class SensorReader(ABC):
 
 
 @dataclass
+class UnavailableSensorReader(SensorReader):
+    """Allows the UI to start even when live hardware is unavailable."""
+
+    reason: str
+    source: str = "unavailable"
+
+    def read(self) -> SensorFrame:
+        raise RuntimeError(self.reason)
+
+
+@dataclass
+class Ads1115Reader(SensorReader):
+    """Reads eight membrane sensor voltages from two ADS1115 converters."""
+
+    address_ads0: int = 0x48
+    address_ads1: int = 0x49
+    source: str = "ads1115"
+
+    def __post_init__(self):
+        if board is None or busio is None or ADS is None or AnalogIn is None:
+            raise RuntimeError(
+                "Adafruit ADS1115 dependencies are not installed."
+            )
+
+        self._i2c_bus = busio.I2C(board.SCL, board.SDA)
+        self._ads0 = ADS.ADS1115(self._i2c_bus, address=self.address_ads0)
+        self._ads1 = ADS.ADS1115(self._i2c_bus, address=self.address_ads1)
+
+        # Use integer channel indices as requested instead of ADS.P0 ... ADS.P3.
+        self._channels = [
+            AnalogIn(self._ads0, 0),
+            AnalogIn(self._ads0, 1),
+            AnalogIn(self._ads0, 2),
+            AnalogIn(self._ads0, 3),
+            AnalogIn(self._ads1, 0),
+            AnalogIn(self._ads1, 1),
+            AnalogIn(self._ads1, 2),
+            AnalogIn(self._ads1, 3),
+        ]
+
+    def read(self) -> SensorFrame:
+        sensor_r2 = self._channels[0].voltage
+        sensor_r3 = self._channels[1].voltage
+        sensor_r4 = self._channels[2].voltage
+        sensor_r1 = self._channels[3].voltage
+        sensor_r8 = self._channels[4].voltage
+        sensor_r7 = self._channels[5].voltage
+        sensor_r6 = self._channels[6].voltage
+        sensor_r5 = self._channels[7].voltage
+
+        sensors = np.array(
+            [
+                sensor_r1,
+                sensor_r2,
+                sensor_r3,
+                sensor_r4,
+                sensor_r5,
+                sensor_r6,
+                sensor_r7,
+                sensor_r8,
+            ],
+            dtype=float,
+        )
+        return SensorFrame(
+            sensors=sensors,
+            timestamp=datetime.utcnow(),
+            source=self.source,
+            metadata={
+                "reader": type(self).__name__,
+                "ads0_address": hex(self.address_ads0),
+                "ads1_address": hex(self.address_ads1),
+            },
+        )
+
+
+@dataclass
 class SerialForceReader:
     """Reads live force values from a serial connection."""
 
@@ -46,6 +134,8 @@ class SerialForceReader:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread = None
+        self._sample_id = 0
+        self._sample_history = deque(maxlen=2000)
         self.last_raw_text = ""
         self.last_error = ""
         self.latest_force_value: float | None = None
@@ -74,16 +164,16 @@ class SerialForceReader:
         if not text:
             return None
 
+        text = text.replace(",", ".")
         if text.upper().endswith("N"):
             text = text[:-1].strip()
             if not text:
                 return None
 
-        text = text.replace(",", ".")
-        match = self._number_pattern.search(text)
-        if match is None:
+        matches = self._number_pattern.findall(text)
+        if not matches:
             return None
-        return float(match.group(0))
+        return float(matches[-1])
 
     def _read_loop(self):
         while not self._stop_event.is_set():
@@ -97,8 +187,11 @@ class SerialForceReader:
                 with self._lock:
                     self.last_raw_text = text
                     if value is not None:
+                        timestamp = datetime.utcnow()
                         self.latest_force_value = value
-                        self.latest_force_timestamp = datetime.utcnow()
+                        self.latest_force_timestamp = timestamp
+                        self._sample_id += 1
+                        self._sample_history.append((self._sample_id, timestamp, value))
                     self.last_error = ""
             except Exception as exc:
                 with self._lock:
@@ -121,6 +214,10 @@ class SerialForceReader:
         with self._lock:
             return self.latest_force_timestamp
 
+    def get_samples_since(self, last_sample_id: int) -> list[tuple[int, datetime, float]]:
+        with self._lock:
+            return [sample for sample in self._sample_history if sample[0] > last_sample_id]
+
     def close(self):
         self._stop_event.set()
         if self._thread is not None and self._thread.is_alive():
@@ -134,6 +231,64 @@ class SerialForceReader:
         if self._serial is None:
             return f"{self.port} geschlossen"
         return f"{self.port} offen @ {self.baudrate}"
+
+
+@dataclass
+class SerialSensorReader(SensorReader):
+    """Reads membrane sensor values from a serial stream."""
+
+    port: str = "COM3"
+    baudrate: int = 57600
+    timeout: float = 0.2
+    sensor_count: int = 8
+    source: str = "serial"
+
+    def __post_init__(self):
+        if serial is None:
+            raise RuntimeError("pyserial is not installed.")
+        self._serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
+        self._number_pattern = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
+        try:
+            self._serial.reset_input_buffer()
+        except AttributeError:
+            pass
+
+    def _parse_sensor_text(self, text: str) -> np.ndarray:
+        matches = self._number_pattern.findall(text.replace(",", "."))
+        if len(matches) < self.sensor_count:
+            raise ValueError(
+                f"Expected at least {self.sensor_count} sensor values, received {len(matches)} from: {text!r}"
+            )
+        values = np.asarray(matches[: self.sensor_count], dtype=float)
+        return values
+
+    def read(self) -> SensorFrame:
+        while True:
+            line = self._serial.readline()
+            if not line:
+                continue
+
+            text = line.decode("ascii", errors="ignore").strip()
+            if not text:
+                continue
+
+            sensors = self._parse_sensor_text(text)
+            return SensorFrame(
+                sensors=sensors,
+                timestamp=datetime.utcnow(),
+                source=self.source,
+                metadata={
+                    "reader": type(self).__name__,
+                    "port": self.port,
+                    "baudrate": self.baudrate,
+                    "raw_text": text,
+                },
+            )
+
+    def close(self):
+        if self._serial is not None:
+            self._serial.close()
+            self._serial = None
 
 
 @dataclass

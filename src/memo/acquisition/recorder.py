@@ -5,11 +5,19 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
+
 from memo.types import LabeledSample
 
 
 CSV_COLUMNS = ["timestamp", "X", "Y", "F"] + [f"Sensor R{i}" for i in range(1, 9)]
 RAW_CSV_COLUMNS = ["date", "time", "X", "Y", "F"] + [f"Sensor R{i}" for i in range(1, 9)]
+RAW_SUMMARY_COLUMNS = (
+    ["date", "time", "X", "Y"]
+    + ["F_mean", "F_std"]
+    + [f"Sensor R{i}_mean" for i in range(1, 9)]
+    + [f"Sensor R{i}_std" for i in range(1, 9)]
+)
 
 
 class CsvSampleRecorder:
@@ -112,24 +120,31 @@ class CsvSampleRecorder:
 class RawSampleFileWriter:
     """Writes each recorded sample to its own CSV file inside data/raw."""
 
-    file_pattern = re.compile(r"^(?P<index>\d{4})_.*N\.csv$")
+    file_pattern = re.compile(r"^3D_Messung(?P<measurement>\d{2})_(?P<index>\d{4})_(?P<force>-?\d+)N\.csv$")
 
-    def __init__(self, output_dir):
+    def __init__(self, output_dir, summary_output_dir=None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.summary_output_dir = Path(summary_output_dir) if summary_output_dir is not None else self.output_dir
+        self.summary_output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _next_index(self) -> int:
+    def _next_index(self, measurement_number: int) -> int:
         max_index = 0
         for csv_path in self.output_dir.glob("*.csv"):
             match = self.file_pattern.match(csv_path.name)
-            if match:
+            if match and int(match.group("measurement")) == int(measurement_number):
                 max_index = max(max_index, int(match.group("index")))
         return max_index + 1
 
-    def write_sample(self, sample: LabeledSample) -> Path:
+    def _summary_file_path(self, measurement_number: int, force_value: int) -> Path:
+        return self.summary_output_dir / f"3D_Messung_{measurement_number:02d}_{force_value}N_summary.csv"
+
+    def write_sample(self, sample: LabeledSample, measurement_number: int) -> Path:
         timestamp = sample.timestamp or datetime.utcnow()
         force_value = int(round(float(sample.force)))
-        file_path = self.output_dir / f"{self._next_index():04d}_{force_value}N.csv"
+        file_path = self.output_dir / (
+            f"3D_Messung{measurement_number:02d}_{self._next_index(measurement_number):04d}_{force_value}N.csv"
+        )
 
         row = {
             "date": timestamp.date().isoformat(),
@@ -145,5 +160,54 @@ class RawSampleFileWriter:
             writer = csv.DictWriter(handle, fieldnames=RAW_CSV_COLUMNS)
             writer.writeheader()
             writer.writerow(row)
+
+        return file_path
+
+    def write_timeseries(self, rows: list[dict[str, float | str]], measurement_number: int) -> Path:
+        if not rows:
+            raise ValueError("Cannot write an empty raw timeseries.")
+
+        force_value = int(round(float(rows[-1]["F"])))
+        file_path = self.output_dir / (
+            f"3D_Messung{measurement_number:02d}_{self._next_index(measurement_number):04d}_{force_value}N.csv"
+        )
+
+        with file_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=RAW_CSV_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        return file_path
+
+    def write_timeseries_summary(self, rows: list[dict[str, float | str]], measurement_number: int) -> Path:
+        if not rows:
+            raise ValueError("Cannot write a summary for an empty raw timeseries.")
+
+        force_value = int(round(float(rows[-1]["F"])))
+        file_path = self._summary_file_path(measurement_number, force_value)
+        last_row = rows[-1]
+        summary_row: dict[str, float | str] = {
+            "date": str(last_row["date"]),
+            "time": str(last_row["time"]),
+            "X": float(last_row["X"]),
+            "Y": float(last_row["Y"]),
+        }
+
+        force_values = [float(row["F"]) for row in rows]
+        summary_row["F_mean"] = float(np.mean(force_values))
+        summary_row["F_std"] = float(np.std(force_values))
+
+        for index in range(1, 9):
+            sensor_key = f"Sensor R{index}"
+            sensor_values = [float(row[sensor_key]) for row in rows]
+            summary_row[f"{sensor_key}_mean"] = float(np.mean(sensor_values))
+            summary_row[f"{sensor_key}_std"] = float(np.std(sensor_values))
+
+        file_exists = file_path.exists() and file_path.stat().st_size > 0
+        with file_path.open("a", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=RAW_SUMMARY_COLUMNS)
+            if not file_exists:
+                writer.writeheader()
+            writer.writerow(summary_row)
 
         return file_path

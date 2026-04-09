@@ -10,71 +10,157 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, Patch, Polygon, Rectangle
 from matplotlib.transforms import Affine2D
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout
+
+try:
+    import pyqtgraph as pg
+except ImportError:
+    pg = None
 
 
 class LiveSensorPlot(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.figure = Figure(figsize=(5, 4))
-        self.canvas = FigureCanvas(self.figure)
-        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.axis = self.figure.add_subplot(111)
+        if pg is None:
+            raise RuntimeError("pyqtgraph is not installed.")
+        self.plot_widget = pg.PlotWidget(background="w")
+        self.plot_widget.setMenuEnabled(False)
+        self.plot_widget.setMouseEnabled(x=False, y=False)
+        self.plot_widget.hideButtons()
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.18)
+        self.plot_widget.setLabel("left", "Wert")
+        self.plot_widget.setLabel("bottom", "Sensor")
+        self.plot_widget.getAxis("left").setTextPen(pg.mkPen("#344054"))
+        self.plot_widget.getAxis("bottom").setTextPen(pg.mkPen("#344054"))
+        self.plot_widget.getAxis("left").setPen(pg.mkPen("#98a2b3"))
+        self.plot_widget.getAxis("bottom").setPen(pg.mkPen("#98a2b3"))
+        self.plot_widget.getPlotItem().setContentsMargins(10, 10, 10, 10)
+        self.plot_widget.setYRange(0.0, 4.0, padding=0.02)
+        self.plot_widget.setXRange(0.5, 8.5, padding=0.0)
+        self.plot_widget.getPlotItem().getViewBox().setLimits(xMin=0.5, xMax=8.5, yMin=0.0)
+        ticks = [(index, str(index)) for index in range(1, 9)]
+        self.plot_widget.getAxis("bottom").setTicks([ticks])
+        self._bar_item = pg.BarGraphItem(
+            x=np.arange(1, 9, dtype=float),
+            height=np.zeros(8, dtype=float),
+            width=0.7,
+            brush=pg.mkBrush("#1f77b4"),
+            pen=pg.mkPen("#1b5f91", width=1.0),
+        )
+        self.plot_widget.addItem(self._bar_item)
+        self._title_label = QLabel("Live Plot der 8 Sensorwerte")
+        self._title_label.setAlignment(Qt.AlignCenter)
+        self._title_label.setStyleSheet("color: #1f2a37; font-size: 14pt; font-weight: 600;")
         self._build_layout()
         self.update_values(np.zeros(8, dtype=float))
 
     def _build_layout(self):
         layout = QVBoxLayout(self)
-        layout.addWidget(self.canvas)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addWidget(self._title_label)
+        layout.addWidget(self.plot_widget)
 
     def update_values(self, values):
         values = np.asarray(values, dtype=float)
-        self.axis.clear()
-        self.axis.bar(np.arange(1, len(values) + 1), values, color="#1f77b4")
-        self.axis.set_title("Live Plot der 8 Sensorwerte")
-        self.axis.set_xlabel("Sensor")
-        self.axis.set_ylabel("Wert")
-        self.axis.set_xticks(np.arange(1, len(values) + 1))
-        self.axis.set_ylim(0, 4)
-        self.axis.set_yticks(np.arange(0, 4.5, 0.5))
-        self.canvas.draw_idle()
+        heights = np.clip(values[:8], 0.0, None)
+        y_max = max(4.0, float(np.max(heights)) + 0.25) if heights.size else 4.0
+        self.plot_widget.setYRange(0.0, y_max, padding=0.02)
+        self._bar_item.setOpts(x=np.arange(1, len(heights) + 1, dtype=float), height=heights)
 
 
 class LiveForcePlot(QWidget):
-    def __init__(self, history_seconds: float = 5.0, parent=None):
+    def __init__(
+        self,
+        history_seconds: float = 5.0,
+        target_force: float = 0.0,
+        threshold: float = 0.5,
+        hide_x_tick_labels: bool = False,
+        fixed_grid: bool = False,
+        center_latest_value: bool = False,
+        parent=None,
+    ):
         super().__init__(parent)
+        if pg is None:
+            raise RuntimeError("pyqtgraph is not installed.")
         self.history_seconds = history_seconds
+        self.target_force = float(target_force)
+        self.threshold = float(threshold)
+        self.hide_x_tick_labels = hide_x_tick_labels
+        self.fixed_grid = fixed_grid
+        self.center_latest_value = center_latest_value
         self.timestamps: deque[datetime] = deque()
         self.values: deque[float] = deque()
-        self.start_time: datetime | None = None
         self.current_time: datetime | None = None
         self.stream_active = False
-        self.figure = Figure(figsize=(5, 3))
-        self.canvas = FigureCanvas(self.figure)
-        self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.axis = self.figure.add_subplot(111)
+        self.plot_widget = pg.PlotWidget(background="w")
+        self.plot_widget.setMenuEnabled(False)
+        self.plot_widget.setMouseEnabled(x=False, y=False)
+        self.plot_widget.hideButtons()
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.18)
+        self.plot_widget.setLabel("left", "Kraft [N]")
+        self.plot_widget.setLabel("bottom", "Zeit seit Start [s]")
+        self.plot_widget.getAxis("left").setTextPen(pg.mkPen("#344054"))
+        self.plot_widget.getAxis("bottom").setTextPen(pg.mkPen("#344054"))
+        if self.hide_x_tick_labels:
+            self.plot_widget.getAxis("bottom").setStyle(showValues=False, tickLength=0)
+            self.plot_widget.setLabel("bottom", "")
+        self.plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._band_item = pg.LinearRegionItem(
+            values=(self.target_force - self.threshold, self.target_force + self.threshold),
+            orientation="horizontal",
+            movable=False,
+            brush=pg.mkBrush(15, 139, 109, 28),
+            pen=pg.mkPen(None),
+        )
+        self._target_line = pg.InfiniteLine(
+            pos=self.target_force,
+            angle=0,
+            movable=False,
+            pen=pg.mkPen("#0f8b6d", width=1.5, style=Qt.DashLine),
+        )
+        self._curve = self.plot_widget.plot([], [], pen=pg.mkPen("#5f6b7a", width=2))
+        self._marker = pg.ScatterPlotItem(size=9, brush=pg.mkBrush("#b42318"), pen=pg.mkPen("#b42318"))
+        self.plot_widget.addItem(self._band_item)
+        self.plot_widget.addItem(self._target_line)
+        self.plot_widget.addItem(self._marker)
         self._build_layout()
+        self._update_static_ranges()
         self._redraw()
 
     def _build_layout(self):
         layout = QVBoxLayout(self)
-        layout.addWidget(self.canvas)
+        layout.addWidget(self.plot_widget)
+
+    def _update_static_ranges(self):
+        min_force = min(0.0, self.target_force - max(2.0, 2.0 * self.threshold))
+        max_force = max(25.0, self.target_force + max(2.0, 2.0 * self.threshold))
+        self.plot_widget.setYRange(min_force, max_force, padding=0.02)
+        self._band_item.setRegion((self.target_force - self.threshold, self.target_force + self.threshold))
+        self._target_line.setValue(self.target_force)
 
     def append_value(self, timestamp: datetime, value: float):
-        if self.start_time is None:
-            self.start_time = timestamp
-        self.current_time = timestamp
-        self.timestamps.append(timestamp)
-        self.values.append(float(value))
-        cutoff = timestamp.timestamp() - self.history_seconds
+        self.append_values([(timestamp, value)])
+
+    def append_values(self, samples: list[tuple[datetime, float]]):
+        if not samples:
+            return
+
+        last_timestamp = samples[-1][0]
+        self.current_time = last_timestamp
+
+        for timestamp, value in samples:
+            self.timestamps.append(timestamp)
+            self.values.append(float(value))
+
+        cutoff = last_timestamp.timestamp() - self.history_seconds
         while self.timestamps and self.timestamps[0].timestamp() < cutoff:
             self.timestamps.popleft()
             self.values.popleft()
         self._redraw()
 
     def advance_time(self, timestamp: datetime):
-        if self.start_time is None:
-            self.start_time = timestamp
         self.current_time = timestamp
         cutoff = timestamp.timestamp() - self.history_seconds
         while self.timestamps and self.timestamps[0].timestamp() < cutoff:
@@ -83,36 +169,53 @@ class LiveForcePlot(QWidget):
         self._redraw()
 
     def set_stream_active(self, active: bool):
-        self.stream_active = bool(active)
+        active = bool(active)
+        if self.stream_active == active:
+            return
+        self.stream_active = active
+        self._redraw()
+
+    def set_target_force(self, target_force: float):
+        target_force = float(target_force)
+        if self.target_force == target_force:
+            return
+        self.target_force = target_force
+        self._update_static_ranges()
         self._redraw()
 
     def _redraw(self):
-        self.axis.clear()
-        self.axis.set_title("Live Plot Kraft ueber Zeit")
-        self.axis.set_xlabel("Zeit seit Start [s]")
-        self.axis.set_ylabel("Kraft [N]")
-        self.axis.set_ylim(0.0, 25.0)
-        self.axis.set_yticks(np.arange(0.0, 25.0 + 0.001, 2.5))
-
+        self._update_static_ranges()
         reference_time = self.current_time.timestamp() if self.current_time is not None else None
-        start_time = self.start_time.timestamp() if self.start_time is not None else None
 
-        if self.timestamps and reference_time is not None and start_time is not None:
-            x_values = np.array([timestamp.timestamp() - start_time for timestamp in self.timestamps], dtype=float)
+        if self.timestamps and reference_time is not None:
+            x_values = np.array([timestamp.timestamp() - reference_time for timestamp in self.timestamps], dtype=float)
+            if not self.center_latest_value:
+                x_values += self.history_seconds
             y_values = np.array(self.values, dtype=float)
-            trace_color = "#0f8b6d" if self.stream_active else "#b42318"
-            self.axis.plot(x_values, y_values, color=trace_color, linewidth=2.0)
-            self.axis.scatter(x_values[-1:], y_values[-1:], color=trace_color, s=28, zorder=3)
-            elapsed = max(0.0, reference_time - start_time)
-            half_window = self.history_seconds / 2.0
-            window_start = max(0.0, elapsed - half_window)
-            window_end = window_start + self.history_seconds
-            self.axis.set_xlim(window_start, window_end)
-        else:
-            self.axis.set_xlim(0.0, self.history_seconds)
+            latest_value = y_values[-1]
+            within_threshold = abs(latest_value - self.target_force) <= self.threshold
+            latest_color = "#0f8b6d" if self.stream_active and within_threshold else "#b42318"
+            trace_color = "#5f6b7a" if self.stream_active else "#98a2ad"
+            self._curve.setPen(pg.mkPen(trace_color, width=2))
+            self._curve.setData(x_values, y_values)
+            marker_x = 0.0 if self.center_latest_value else self.history_seconds
+            self._marker.setBrush(pg.mkBrush(latest_color))
+            self._marker.setPen(pg.mkPen(latest_color))
+            self._marker.setData([marker_x], [latest_value])
 
-        self.axis.grid(True, linestyle="--", linewidth=0.5, alpha=0.5)
-        self.canvas.draw_idle()
+            if self.center_latest_value:
+                half_window = self.history_seconds / 2.0
+                self.plot_widget.setXRange(-half_window, half_window, padding=0.0)
+            else:
+                self.plot_widget.setXRange(0.0, self.history_seconds, padding=0.0)
+        else:
+            self._curve.setData([], [])
+            self._marker.setData([], [])
+            if self.center_latest_value:
+                half_window = self.history_seconds / 2.0
+                self.plot_widget.setXRange(-half_window, half_window, padding=0.0)
+            else:
+                self.plot_widget.setXRange(0.0, self.history_seconds, padding=0.0)
 
 
 class XYGridPlot(QWidget):
@@ -203,6 +306,25 @@ class XYGridPlot(QWidget):
                 zorder=2.5,
             )
             self.axis.add_patch(marker)
+
+    def _draw_monitor(self):
+        monitor_width = 150.0
+        monitor_height = 45.0
+        monitor_offset = 72.0
+        center_x = 0.0
+        center_y = (self.membrane_size / 2.0) + monitor_offset
+        monitor = Rectangle(
+            (center_x - (monitor_width / 2.0), center_y - (monitor_height / 2.0)),
+            monitor_width,
+            monitor_height,
+            facecolor="#c9d3df",
+            edgecolor="#4b5563",
+            linewidth=1.4,
+            alpha=0.95,
+            clip_on=False,
+            zorder=2.4,
+        )
+        self.axis.add_patch(monitor)
 
     def _draw_membrane(self):
         membrane = Polygon(
@@ -379,6 +501,7 @@ class XYGridPlot(QWidget):
             Line2D([0], [0], marker="o", color="none", markerfacecolor="red", markeredgecolor="black", markeredgewidth=1.2, markersize=9, label="Aktuelles Sample"),
             Line2D([0], [0], marker="s", color="none", markerfacecolor="#4a90e2", markeredgecolor="#1f4f82", markeredgewidth=1.0, alpha=0.35, markersize=10, label="Membran"),
             Patch(facecolor="#f5a623", edgecolor="#7a4d00", alpha=0.75, label="Sensor (R1-R8)"),
+            Patch(facecolor="#c9d3df", edgecolor="#4b5563", alpha=0.95, label="Monitor"),
             Line2D([0], [0], marker="s", color="none", markerfacecolor="black", markeredgecolor="black", markeredgewidth=1.0, markersize=10, label="Aluprofil Top Level"),
             Line2D([0], [0], marker="s", color="none", markerfacecolor="black", markeredgecolor="black", markeredgewidth=1.0, alpha=0.3, markersize=10, label="Aluprofil Low Level"),
         ]
@@ -413,7 +536,7 @@ class XYGridPlot(QWidget):
     def _draw_grid(self):
         self.axis.clear()
         self.figure.subplots_adjust(right=0.78)
-        self.axis.set_title("XY Draufsicht")
+        self.axis.set_title("XY Draufsicht", pad=25)
         self.axis.set_xlim(*self.x_limits)
         self.axis.set_ylim(*self.y_limits)
         self._configure_axes()
@@ -421,6 +544,7 @@ class XYGridPlot(QWidget):
         membrane_patch = self._draw_membrane()
         self._draw_membrane_grid(membrane_patch)
         self._draw_sensors()
+        self._draw_monitor()
         self._draw_test_points()
         self.axis.set_aspect("equal", adjustable="box")
         self._draw_corner_markers()
@@ -543,24 +667,44 @@ class CalibrationStatusPanel(QWidget):
 
     def _build_layout(self):
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
         title = QLabel("Kalibrierung / Basisspannung")
         title.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.summary_label = QLabel("Kalibrierung nicht gestartet")
+        self.summary_label.setWordWrap(True)
+        self.summary_label.setStyleSheet("font-size: 12px;")
         layout.addWidget(title)
         layout.addWidget(self.summary_label)
 
         grid = QGridLayout()
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(4)
         grid.addWidget(QLabel("Sensor"), 0, 0)
         grid.addWidget(QLabel("Basis"), 0, 1)
         grid.addWidget(QLabel("Live"), 0, 2)
         grid.addWidget(QLabel("Status"), 0, 3)
+        grid.setColumnStretch(0, 0)
+        grid.setColumnStretch(1, 0)
+        grid.setColumnStretch(2, 0)
+        grid.setColumnStretch(3, 1)
+        grid.setColumnMinimumWidth(0, 46)
+        grid.setColumnMinimumWidth(1, 62)
+        grid.setColumnMinimumWidth(2, 62)
+        grid.setColumnMinimumWidth(3, 110)
 
         for index, baseline in enumerate(self.baseline_values, start=1):
             sensor_label = QLabel(f"R{index}")
             baseline_label = QLabel(f"{baseline:.3f}")
             live_label = QLabel("-")
             status_label = QLabel("Nicht kalibriert")
-            status_label.setStyleSheet("background-color: #f8d7da; color: #721c24; padding: 4px;")
+            sensor_label.setStyleSheet("font-size: 12px;")
+            baseline_label.setStyleSheet("font-size: 12px;")
+            live_label.setStyleSheet("font-size: 12px;")
+            status_label.setMinimumWidth(110)
+            status_label.setStyleSheet(
+                "background-color: #f8d7da; color: #721c24; padding: 3px 6px; font-size: 11px;"
+            )
             grid.addWidget(sensor_label, index, 0)
             grid.addWidget(baseline_label, index, 1)
             grid.addWidget(live_label, index, 2)
@@ -589,7 +733,9 @@ class CalibrationStatusPanel(QWidget):
             if np.isnan(live_value):
                 live_label.setText("-")
                 status_label.setText("Keine Live-Daten")
-                status_label.setStyleSheet("background-color: #e2e3e5; color: #41464b; padding: 4px;")
+                status_label.setStyleSheet(
+                    "background-color: #e2e3e5; color: #41464b; padding: 3px 6px; font-size: 11px;"
+                )
                 continue
 
             live_label.setText(f"{live_value:.3f}")
@@ -597,13 +743,19 @@ class CalibrationStatusPanel(QWidget):
             if is_calibrated:
                 matched_count += 1
                 status_label.setText("Kalibriert")
-                status_label.setStyleSheet("background-color: #d4edda; color: #155724; padding: 4px;")
+                status_label.setStyleSheet(
+                    "background-color: #d4edda; color: #155724; padding: 3px 6px; font-size: 11px;"
+                )
             elif self.calibration_active:
-                status_label.setText("Noch nicht kalibriert")
-                status_label.setStyleSheet("background-color: #f8d7da; color: #721c24; padding: 4px;")
+                status_label.setText("Nicht kal.")
+                status_label.setStyleSheet(
+                    "background-color: #f8d7da; color: #721c24; padding: 3px 6px; font-size: 11px;"
+                )
             else:
                 status_label.setText("Bereit")
-                status_label.setStyleSheet("background-color: #e2e3e5; color: #41464b; padding: 4px;")
+                status_label.setStyleSheet(
+                    "background-color: #e2e3e5; color: #41464b; padding: 3px 6px; font-size: 11px;"
+                )
 
         if self.calibration_active:
             self.summary_label.setText(
