@@ -20,10 +20,12 @@ except ImportError:
 
 
 class LiveSensorPlot(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, baseline_value: float = 2.5, threshold: float = 0.1, parent=None):
         super().__init__(parent)
         if pg is None:
             raise RuntimeError("pyqtgraph is not installed.")
+        self.baseline_value = float(baseline_value)
+        self.threshold = float(threshold)
         self.plot_widget = pg.PlotWidget(background="w")
         self.plot_widget.setMenuEnabled(False)
         self.plot_widget.setMouseEnabled(x=False, y=False)
@@ -48,7 +50,23 @@ class LiveSensorPlot(QWidget):
             brush=pg.mkBrush("#1f77b4"),
             pen=pg.mkPen("#1b5f91", width=1.0),
         )
+        self._threshold_band = pg.LinearRegionItem(
+            values=(self.baseline_value - self.threshold, self.baseline_value + self.threshold),
+            orientation="horizontal",
+            movable=False,
+            brush=pg.mkBrush(245, 158, 11, 70),
+            pen=pg.mkPen(None),
+        )
+        self._baseline_line = pg.InfiniteLine(
+            pos=self.baseline_value,
+            angle=0,
+            movable=False,
+            pen=pg.mkPen("#f59e0b", width=1.5, style=Qt.DashLine),
+        )
+        self._baseline_line.setOpacity(0.7)
+        self.plot_widget.addItem(self._threshold_band)
         self.plot_widget.addItem(self._bar_item)
+        self.plot_widget.addItem(self._baseline_line)
         self._title_label = QLabel("Live Plot der 8 Sensorwerte")
         self._title_label.setAlignment(Qt.AlignCenter)
         self._title_label.setStyleSheet("color: #1f2a37; font-size: 14pt; font-weight: 600;")
@@ -65,8 +83,14 @@ class LiveSensorPlot(QWidget):
     def update_values(self, values):
         values = np.asarray(values, dtype=float)
         heights = np.clip(values[:8], 0.0, None)
-        y_max = max(4.0, float(np.max(heights)) + 0.25) if heights.size else 4.0
+        y_max = max(
+            4.0,
+            self.baseline_value + self.threshold + 0.25,
+            float(np.max(heights)) + 0.25,
+        ) if heights.size else max(4.0, self.baseline_value + self.threshold + 0.25)
         self.plot_widget.setYRange(0.0, y_max, padding=0.02)
+        self._threshold_band.setRegion((self.baseline_value - self.threshold, self.baseline_value + self.threshold))
+        self._baseline_line.setValue(self.baseline_value)
         self._bar_item.setOpts(x=np.arange(1, len(heights) + 1, dtype=float), height=heights)
 
 
@@ -226,6 +250,7 @@ class XYGridPlot(QWidget):
         grid_spacing: float,
         corner_marker_size: float | None = None,
         membrane_size: float = 450.0 * math.sqrt(2.0),
+        max_abs_coordinate: float | None = None,
         sensor_size: tuple[float, float] = (18.0, 33.0),
         sensor_definitions: list[dict[str, float | str]] | None = None,
         on_point_selected=None,
@@ -237,6 +262,7 @@ class XYGridPlot(QWidget):
         self.grid_spacing = grid_spacing
         self.corner_marker_size = corner_marker_size or grid_spacing
         self.membrane_size = membrane_size
+        self.max_abs_coordinate = max_abs_coordinate
         self.sensor_size = sensor_size
         self.sensor_definitions = sensor_definitions or [
             {"name": "R1", "x": -30.0, "y": 200.0, "rotation": 0.0},
@@ -454,6 +480,8 @@ class XYGridPlot(QWidget):
         for y_value in sorted(y_values, reverse=True):
             for x_value in sorted(x_values):
                 point = (float(x_value), float(y_value))
+                if self.max_abs_coordinate is not None and max(abs(point[0]), abs(point[1])) > self.max_abs_coordinate:
+                    continue
                 if abs(point[0]) + abs(point[1]) <= half_size + 1e-9 and self._point_within_eyelet_bounds(point):
                     points.append(point)
         return points
