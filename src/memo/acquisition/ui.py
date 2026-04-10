@@ -54,6 +54,7 @@ MEMBRANE_SIDE_LENGTH = 450.0
 MEMBRANE_DIAGONAL = MEMBRANE_SIDE_LENGTH * np.sqrt(2.0)
 X_LIMITS = (-MEMBRANE_DIAGONAL / 2 - OFFSET, MEMBRANE_DIAGONAL / 2 + OFFSET)
 Y_LIMITS = (-MEMBRANE_DIAGONAL / 2 - OFFSET, MEMBRANE_DIAGONAL / 2 + OFFSET)
+XY_INNER_MAX_ABS_COORD_MM = 120.0
 REFRESH_MS = 20
 FORCE_REFRESH_MS = 20
 SENSOR_UI_REFRESH_MS = 120
@@ -62,7 +63,8 @@ FORCE_SERIAL_PORT = resolve_force_serial_port()
 FORCE_SERIAL_BAUDRATE = 57600
 FORCE_STREAM_TIMEOUT_S = 0.5
 FORCE_TARGET_TOLERANCE_N = 0.5
-FORCE_TARGET_HOLD_S = 5.0
+FORCE_TARGET_HOLD_S = 2.0
+FORCE_SEQUENCE_N = (5, 10, 15)
 FORCE_PLOT_HISTORY_S = 8.0
 FORCE_DISPLAY_HISTORY_LENGTH = 9
 FORCE_DISPLAY_SMOOTHING_ALPHA = 0.20
@@ -71,7 +73,7 @@ FORCE_PLOT_MAX_BATCH_POINTS = 240
 BASELINE_SENSOR_VALUES = np.full(8, 2.5, dtype=float)
 SENSOR_BASELINE_THRESHOLD_V = 0.1
 CALIBRATION_TOLERANCE = 0.100
-DEBUG_SENSOR_MODE = False
+DEBUG_SENSOR_MODE = True
 
 
 def _to_utc_timestamp(value: datetime | None) -> float | None:
@@ -94,10 +96,11 @@ class AcquisitionWindow(QMainWindow):
         self.latest_force_value: float | None = None
         self._force_reader_available = True
         self.is_sampling = False
-        self.recorder: CsvSampleRecorder | None = None
+        self.recorders: dict[int, CsvSampleRecorder] = {}
         self.auto_capture_enabled = False
         self._auto_capture_rows: deque[dict[str, float | str]] = deque()
         self._auto_capture_in_progress = False
+        self._auto_force_index = 0
         self._last_force_sample_id = 0
         self._last_sensor_ui_update_ts = 0.0
         self._force_display_history: deque[float] = deque(maxlen=FORCE_DISPLAY_HISTORY_LENGTH)
@@ -123,7 +126,7 @@ class AcquisitionWindow(QMainWindow):
         self.force_input.setRange(-1000, 1000)
         self.force_input.setSingleStep(1)
         self.force_input.setSuffix(' N')
-        self.force_input.setValue(5)
+        self.force_input.setValue(FORCE_SEQUENCE_N[0])
 
         self.live_plot = LiveSensorPlot(
             baseline_value=float(BASELINE_SENSOR_VALUES[0]),
@@ -143,6 +146,7 @@ class AcquisitionWindow(QMainWindow):
             grid_spacing=GRID_SPACING,
             corner_marker_size=CORNER_MARKER_SIZE,
             membrane_size=MEMBRANE_DIAGONAL,
+            max_abs_coordinate=XY_INNER_MAX_ABS_COORD_MM,
             on_point_selected=self._update_point_selection,
         )
         self.calibration_panel = CalibrationStatusPanel(
@@ -153,14 +157,14 @@ class AcquisitionWindow(QMainWindow):
         self.target_label = QLabel('keiner')
         self.point_state_label = QLabel('offen')
         self.sample_status_label = QLabel('0 insgesamt, 0 offen')
-        self.count_label = QLabel('0 Punkte')
+        self.count_label = QLabel('0 Punkte komplett')
         self.file_label = QLabel('-')
         self.status_label = QLabel('Bereit')
         self.force_port_label = QLabel(f'{FORCE_SERIAL_PORT} @ {FORCE_SERIAL_BAUDRATE}')
         self.force_value_label = QLabel('-')
         self.force_raw_label = QLabel('-')
         self.force_reader_status_label = QLabel('Nicht gestartet')
-        self.force_hold_label = QLabel('Kraft innerhalb Toleranz halten: 0.0 / 5.0 s')
+        self.force_hold_label = QLabel('Kraft 5 N halten (1/3): 0.0 / 2.0 s')
         self.force_hold_progress = QProgressBar()
         self.force_hold_progress.setRange(0, int(FORCE_TARGET_HOLD_S * 1000))
         self.force_hold_progress.setValue(0)
@@ -183,6 +187,7 @@ class AcquisitionWindow(QMainWindow):
 
         self._build_ui()
         self._apply_styles()
+        self._sync_force_sequence_ui()
         self._update_point_selection(self.grid_plot.get_active_point(), False)
         self._update_sample_status()
         try:
@@ -415,13 +420,36 @@ class AcquisitionWindow(QMainWindow):
         self.force_plot.set_target_force(float(value))
         self._reset_force_hold_progress()
 
+    def _current_force_target(self) -> int:
+        return int(FORCE_SEQUENCE_N[self._auto_force_index])
+
+    def _current_measurement_path(self, measurement_number: int) -> Path:
+        return self._measurement_path(measurement_number, force_value=self._current_force_target())
+
+    def _set_force_target(self, value: int):
+        self.force_input.blockSignals(True)
+        self.force_input.setValue(int(value))
+        self.force_input.blockSignals(False)
+        self.force_plot.set_target_force(float(value))
+
+    def _sync_force_sequence_ui(self):
+        target_force = self._current_force_target()
+        self._set_force_target(target_force)
+        step_text = f'{self._auto_force_index + 1}/{len(FORCE_SEQUENCE_N)}'
+        self.force_hold_label.setText(
+            f'Kraft {target_force} N halten ({step_text}): 0.0 / {FORCE_TARGET_HOLD_S:.1f} s'
+        )
+        measurement_number = self.measurement_input.value()
+        if self.recorders:
+            self.file_label.setText(self._measurement_path(measurement_number, force_value=target_force).name)
+        else:
+            self.file_label.setText(f'Messung {measurement_number:02d} | {len(FORCE_SEQUENCE_N)} Kraftstufen')
+
     def _reset_force_hold_progress(self):
         self._force_in_tolerance_since = None
         self._auto_capture_rows.clear()
         self.force_hold_progress.setValue(0)
-        self.force_hold_label.setText(
-            f'Kraft innerhalb Toleranz halten: 0.0 / {FORCE_TARGET_HOLD_S:.1f} s'
-        )
+        self._sync_force_sequence_ui()
 
     def _filter_display_force(self, value: float) -> float:
         raw_value = float(value)
@@ -487,14 +515,17 @@ class AcquisitionWindow(QMainWindow):
         held_seconds = max(0.0, (timestamp - self._force_in_tolerance_since).total_seconds())
         clamped_seconds = min(held_seconds, FORCE_TARGET_HOLD_S)
         self.force_hold_progress.setValue(int(clamped_seconds * 1000))
+        target_force = self._current_force_target()
+        step_text = f'{self._auto_force_index + 1}/{len(FORCE_SEQUENCE_N)}'
         self.force_hold_label.setText(
-            f'Kraft innerhalb Toleranz halten: {clamped_seconds:.1f} / {FORCE_TARGET_HOLD_S:.1f} s'
+            f'Kraft {target_force} N halten ({step_text}): {clamped_seconds:.1f} / {FORCE_TARGET_HOLD_S:.1f} s'
         )
         if self.auto_capture_enabled and held_seconds >= FORCE_TARGET_HOLD_S:
             self._record_auto_capture()
 
-    def _measurement_path(self, measurement_number: int) -> Path:
-        force_value = int(self.force_input.value())
+    def _measurement_path(self, measurement_number: int, force_value: int | None = None) -> Path:
+        if force_value is None:
+            force_value = int(self.force_input.value())
         return self.output_dir / f'3D_Messung_{measurement_number:02d}_{force_value}N.csv'
 
     def save_screenshot(self):
@@ -513,17 +544,24 @@ class AcquisitionWindow(QMainWindow):
         QMessageBox.information(self, 'Screenshot gespeichert', f'Der Screenshot wurde gespeichert unter:\n{screenshot_path}')
 
     def _has_started_measurement(self) -> bool:
-        return self.recorder is not None and self.recorder.sample_count > 0
+        return any(recorder.sample_count > 0 for recorder in self.recorders.values())
 
     def _initialize_measurement(self, measurement_number: int, allow_resume: bool, prompt_if_exists: bool):
-        csv_path = self._measurement_path(measurement_number)
+        csv_paths = {
+            force_value: self._measurement_path(measurement_number, force_value=force_value)
+            for force_value in FORCE_SEQUENCE_N
+        }
         overwrite = False
 
-        if csv_path.exists() and prompt_if_exists:
+        existing_paths = [path for path in csv_paths.values() if path.exists()]
+        if existing_paths and prompt_if_exists:
             reply = QMessageBox.question(
                 self,
-                'Datei existiert bereits',
-                f'Die Datei {csv_path.name} existiert bereits. Soll sie ueberschrieben werden?',
+                'Dateien existieren bereits',
+                (
+                    f'Es existieren bereits {len(existing_paths)} Dateien fuer die Kraftserie '
+                    f'von Messung {measurement_number:02d}. Sollen sie ueberschrieben werden?'
+                ),
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -535,26 +573,41 @@ class AcquisitionWindow(QMainWindow):
                 self.status_label.setText('Neue Messung abgebrochen.')
                 return False
 
-        self.recorder = CsvSampleRecorder(csv_path, overwrite=overwrite)
+        self.recorders = {
+            force_value: CsvSampleRecorder(csv_paths[force_value], overwrite=overwrite)
+            for force_value in FORCE_SEQUENCE_N
+        }
         if overwrite:
             self.grid_plot.reset_samples()
-            self.status_label.setText(f'Neue Messung gestartet: {csv_path.name}')
+            self.status_label.setText(
+                f'Neue Mehrkraft-Messung gestartet: {measurement_number:02d} '
+                f'({len(FORCE_SEQUENCE_N)} Kraftstufen pro Punkt)'
+            )
         else:
-            saved_points = self.recorder.read_saved_points()
-            if saved_points:
-                self.grid_plot.load_saved_points(saved_points)
-                self.status_label.setText(f'Bestehende Messung fortgesetzt: {csv_path.name}')
+            saved_point_sets = [set(recorder.read_saved_points()) for recorder in self.recorders.values()]
+            completed_points = set.intersection(*saved_point_sets) if saved_point_sets else set()
+            if completed_points:
+                self.grid_plot.load_saved_points(sorted(completed_points))
+                self.status_label.setText(
+                    f'Bestehende Mehrkraft-Messung fortgesetzt: {measurement_number:02d} '
+                    f'({len(completed_points)} Punkte komplett)'
+                )
             else:
                 self.grid_plot.reset_samples()
-                self.status_label.setText(f'Neue Messung gestartet: {csv_path.name}')
+                self.status_label.setText(
+                    f'Neue Mehrkraft-Messung gestartet: {measurement_number:02d} '
+                    f'({len(FORCE_SEQUENCE_N)} Kraftstufen pro Punkt)'
+                )
 
-        self.count_label.setText(f'{self.recorder.sample_count} Punkte')
-        self.file_label.setText(self.recorder.csv_path.name)
+        completed_points = len(self.grid_plot.saved_points)
+        self.count_label.setText(f'{completed_points} Punkte komplett')
+        self._auto_force_index = 0
+        self._sync_force_sequence_ui()
         self._update_sample_status()
         return True
 
     def _ensure_measurement_initialized(self, allow_resume: bool = True, prompt_if_exists: bool = True):
-        if self.recorder is not None:
+        if self.recorders:
             return True
         measurement_number = self.measurement_input.value()
         return self._initialize_measurement(measurement_number, allow_resume=allow_resume, prompt_if_exists=prompt_if_exists)
@@ -579,6 +632,7 @@ class AcquisitionWindow(QMainWindow):
     def toggle_auto_capture(self):
         if self.auto_capture_enabled:
             self.auto_capture_enabled = False
+            self.force_input.setEnabled(True)
             self._reset_force_hold_progress()
             self.capture_button.setText('Starte automatische Punktaufnahme')
             self.status_label.setText('Automatische Punktaufnahme gestoppt.')
@@ -598,9 +652,13 @@ class AcquisitionWindow(QMainWindow):
             return
 
         self.auto_capture_enabled = True
+        self.force_input.setEnabled(False)
+        self._auto_force_index = 0
         self._reset_force_hold_progress()
         self.capture_button.setText('Automatische Punktaufnahme stoppen')
-        self.status_label.setText('Automatische Punktaufnahme aktiv. Halte die Kraft 5 Sekunden im Toleranzbereich.')
+        self.status_label.setText(
+            f'Automatische Punktaufnahme aktiv. Punkt halten und Kraftfolge {list(FORCE_SEQUENCE_N)} N je {FORCE_TARGET_HOLD_S:.0f}s aufnehmen.'
+        )
 
     def _append_auto_capture_row(self, timestamp: datetime, force_value: float):
         if self.latest_frame is None:
@@ -636,6 +694,8 @@ class AcquisitionWindow(QMainWindow):
         try:
             rows = list(self._auto_capture_rows)
             measurement_number = self.measurement_input.value()
+            target_force = self._current_force_target()
+            recorder = self.recorders[target_force]
             sensor_matrix = np.array(
                 [[float(row[f'Sensor R{i}']) for i in range(1, 9)] for row in rows],
                 dtype=float,
@@ -650,24 +710,43 @@ class AcquisitionWindow(QMainWindow):
                 timestamp=last_timestamp,
                 metadata={'source': self.latest_frame.source if self.latest_frame is not None else 'auto_capture'},
             )
-            self.recorder.append_sample(sample)
+            recorder.append_sample(sample)
             raw_file_path = self.raw_writer.write_timeseries(rows, measurement_number=measurement_number)
             summary_file_path = self.raw_writer.write_timeseries_summary(rows, measurement_number=measurement_number)
-            self.grid_plot.mark_point_saved(active_point)
-            self.count_label.setText(f'{self.recorder.sample_count} Punkte')
-            self._update_sample_status()
+            force_step_text = f'{self._auto_force_index + 1}/{len(FORCE_SEQUENCE_N)}'
 
-            if self.grid_plot.remaining_sample_count() == 0:
-                self.auto_capture_enabled = False
-                self.capture_button.setText('Starte automatische Punktaufnahme')
+            if self._auto_force_index < (len(FORCE_SEQUENCE_N) - 1):
+                self._auto_force_index += 1
                 self.status_label.setText(
-                    f'Automatisch aufgenommen: {len(rows)} Samples | Raw: {raw_file_path.name} | Summary: {summary_file_path.name}'
+                    f'Punkt X={active_point[0]:.1f}, Y={active_point[1]:.1f}: Kraft {target_force} N ({force_step_text}) gespeichert. '
+                    f'Naechste Kraft: {self._current_force_target()} N.'
                 )
-                QMessageBox.information(self, 'Messung abgeschlossen', 'Alle Samples dieser Messung wurden gespeichert.')
             else:
-                self.status_label.setText(
-                    f'Automatisch aufgenommen: {len(rows)} Samples | Raw: {raw_file_path.name} | Summary: {summary_file_path.name} | Naechster Punkt bereit.'
-                )
+                self.grid_plot.mark_point_saved(active_point)
+                completed_points = len(self.grid_plot.saved_points)
+                self.count_label.setText(f'{completed_points} Punkte komplett')
+                self._update_sample_status()
+                self._auto_force_index = 0
+
+                if self.grid_plot.remaining_sample_count() == 0:
+                    self.auto_capture_enabled = False
+                    self.force_input.setEnabled(True)
+                    self.capture_button.setText('Starte automatische Punktaufnahme')
+                    self.status_label.setText(
+                        f'Punkt X={active_point[0]:.1f}, Y={active_point[1]:.1f} komplett gespeichert | Raw: {raw_file_path.name} | Summary: {summary_file_path.name}'
+                    )
+                    QMessageBox.information(
+                        self,
+                        'Messung abgeschlossen',
+                        'Alle 49 Innenpunkte wurden fuer alle Kraftstufen gespeichert.',
+                    )
+                else:
+                    next_point = self.grid_plot.get_active_point()
+                    self.status_label.setText(
+                        f'Punkt X={active_point[0]:.1f}, Y={active_point[1]:.1f} komplett gespeichert. '
+                        f'Naechster Punkt: X={next_point[0]:.1f}, Y={next_point[1]:.1f}. '
+                        f'Starte wieder bei {self._current_force_target()} N.'
+                    )
         finally:
             self._reset_force_hold_progress()
             self._auto_capture_in_progress = False
@@ -677,13 +756,14 @@ class AcquisitionWindow(QMainWindow):
         total_count = self.grid_plot.total_sample_count()
         remaining_count = self.grid_plot.remaining_sample_count()
         self.sample_status_label.setText(f'{total_count} insgesamt, {remaining_count} offen')
-        self.measurement_reset_button.setEnabled(self.recorder is not None or total_count > 0)
+        self.measurement_reset_button.setEnabled(bool(self.recorders) or total_count > 0)
 
     def toggle_sampling(self):
         if self.is_sampling:
             self.timer.stop()
             self.is_sampling = False
             self.auto_capture_enabled = False
+            self.force_input.setEnabled(True)
             self._reset_force_hold_progress()
             self._sensor_connection_confirmed = False
             self.start_button.setText('Sampling starten')
@@ -841,7 +921,7 @@ class AcquisitionWindow(QMainWindow):
         self.force_reader_status_label.setText(self.force_reader.connection_info())
 
     def reset_point(self):
-        if self.recorder is None:
+        if not self.recorders:
             QMessageBox.warning(self, 'Keine Messung', 'Es gibt noch keine gespeicherte Messung.')
             return
 
@@ -850,25 +930,28 @@ class AcquisitionWindow(QMainWindow):
             QMessageBox.warning(self, 'Kein gruener Punkt', 'Bitte zuerst einen grueneren gespeicherten Punkt im XY-Plot auswaehlen.')
             return
 
-        removed_count = self.recorder.remove_point(selected_point)
+        removed_count = sum(recorder.remove_point(selected_point) for recorder in self.recorders.values())
         if removed_count <= 0:
             QMessageBox.warning(self, 'Nicht gefunden', 'Der ausgewaehlte Punkt konnte nicht aus der CSV entfernt werden.')
             return
 
         self.grid_plot.reset_saved_point(selected_point)
-        self.count_label.setText(f'{self.recorder.sample_count} Punkte')
+        self.count_label.setText(f'{len(self.grid_plot.saved_points)} Punkte komplett')
         self.status_label.setText(f'Punkt zurueckgesetzt: X={selected_point[0]:.1f}, Y={selected_point[1]:.1f}')
         self._update_sample_status()
 
     def reset_measurement(self):
         self.auto_capture_enabled = False
+        self.force_input.setEnabled(True)
         self._reset_force_hold_progress()
         self.capture_button.setText('Starte automatische Punktaufnahme')
-        if self.recorder is None:
+        if not self.recorders:
             self.grid_plot.reset_samples()
             self.measurement_input.setValue(self.measurement_input.value() + 1)
-            self.file_label.setText('-')
-            self.count_label.setText('0 Punkte')
+            self.recorders = {}
+            self._auto_force_index = 0
+            self._sync_force_sequence_ui()
+            self.count_label.setText('0 Punkte komplett')
             self.status_label.setText('Messung zurueckgesetzt.')
             self._update_sample_status()
             self._update_point_selection(self.grid_plot.get_active_point(), False)
@@ -896,14 +979,14 @@ class AcquisitionWindow(QMainWindow):
             if reply != QMessageBox.Yes:
                 return
 
-        self.recorder = None
+        self.recorders = {}
         self.grid_plot.reset_samples()
         self.measurement_input.setValue(self.measurement_input.value() + 1)
-        self.force_input.setValue(0)
-        self.file_label.setText('-')
-        self.count_label.setText('0 Punkte')
-        next_path = self._measurement_path(self.measurement_input.value())
-        self.status_label.setText(f'Bereit fuer neue Messung: {next_path.name}')
+        self._auto_force_index = 0
+        self._sync_force_sequence_ui()
+        self.count_label.setText('0 Punkte komplett')
+        next_path = self._current_measurement_path(self.measurement_input.value())
+        self.status_label.setText(f'Bereit fuer neue Mehrkraft-Messung: {next_path.name}')
         self._update_sample_status()
         self._update_point_selection(self.grid_plot.get_active_point(), False)
 
@@ -937,7 +1020,7 @@ class AcquisitionWindow(QMainWindow):
 
 def build_reader(replay_csv: str | None, sensor_port: str | None, sensor_baudrate: int, sensor_timeout: float):
     if DEBUG_SENSOR_MODE:
-        return MockReader()
+        return MockReader(baseline=float(BASELINE_SENSOR_VALUES[0]), noise_std=0.05)
     if replay_csv:
         return CsvReplayReader(replay_csv, loop=True)
     if sensor_port:
@@ -946,6 +1029,8 @@ def build_reader(replay_csv: str | None, sensor_port: str | None, sensor_baudrat
             baudrate=sensor_baudrate,
             timeout=sensor_timeout,
         )
+    if sys.platform.startswith("win"):
+        return MockReader(baseline=float(BASELINE_SENSOR_VALUES[0]), noise_std=0.05)
     try:
         return Ads1115Reader()
     except RuntimeError as exc:

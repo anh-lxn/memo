@@ -19,7 +19,7 @@ try:
     import busio
     import adafruit_ads1x15.ads1115 as ADS
     from adafruit_ads1x15.analog_in import AnalogIn
-except ImportError:  # pragma: no cover - depends on Raspberry Pi environment
+except (ImportError, NotImplementedError):  # pragma: no cover - depends on Raspberry Pi environment
     board = None
     busio = None
     ADS = None

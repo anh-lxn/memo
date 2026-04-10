@@ -1,0 +1,60 @@
+{
+  "dataset": {
+    "files": [
+      "C:\\Users\\anh\\Documents\\Repositories\\memo\\data\\recorded_samples\\3D_Messung_01_10N.csv",
+      "C:\\Users\\anh\\Documents\\Repositories\\memo\\data\\recorded_samples\\3D_Messung_02_15N.csv"
+    ],
+    "n_samples_total": 226,
+    "n_unique_positions": 113,
+    "split": {
+      "train_samples": 144,
+      "val_samples": 36,
+      "test_samples": 46
+    }
+  },
+  "models": {
+    "xy_model": {
+      "type": "ExtraTreesRegressor",
+      "best_params": {
+        "max_depth": null,
+        "min_samples_leaf": 1,
+        "n_estimators": 600
+      },
+      "validation_loss": 0.10992100738604055
+    },
+    "f_model": {
+      "type": "ExtraTreesRegressor",
+      "best_params": {
+        "max_depth": null,
+        "min_samples_leaf": 1,
+        "n_estimators": 600
+      },
+      "validation_loss": 0.1950928963848882
+    }
+  },
+  "metrics": {
+    "mae": {
+      "X_mm": 34.35652173913043,
+      "Y_mm": 41.91014492753624,
+      "F_N": 0.5780741019602241
+    },
+    "rmse": {
+      "X_mm": 45.06801944629466,
+      "Y_mm": 61.402613675507126,
+      "F_N": 0.8052570381219674
+    },
+    "tolerance_accuracy_xy": {
+      "+/-10mm": 0.021739130434782608,
+      "+/-20mm": 0.17391304347826086,
+      "+/-40mm": 0.5217391304347826,
+      "+/-80mm": 0.7608695652173914
+    },
+    "euclidean_accuracy_xy": {
+      "10mm_radius": 0.021739130434782608,
+      "20mm_radius": 0.08695652173913043,
+      "40mm_radius": 0.5,
+      "80mm_radius": 0.717391304347826
+    },
+    "test_loss": 0.12981758852293532
+  }
+}

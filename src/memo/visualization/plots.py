@@ -254,6 +254,7 @@ class XYGridPlot(QWidget):
         grid_spacing: float,
         corner_marker_size: float | None = None,
         membrane_size: float = 450.0 * math.sqrt(2.0),
+        max_abs_coordinate: float | None = None,
         sensor_size: tuple[float, float] = (18.0, 33.0),
         sensor_definitions: list[dict[str, float | str]] | None = None,
         on_point_selected=None,
@@ -265,6 +266,7 @@ class XYGridPlot(QWidget):
         self.grid_spacing = grid_spacing
         self.corner_marker_size = corner_marker_size or grid_spacing
         self.membrane_size = membrane_size
+        self.max_abs_coordinate = max_abs_coordinate
         self.sensor_size = sensor_size
         self.sensor_definitions = sensor_definitions or [
             {"name": "R1", "x": -30.0, "y": 200.0, "rotation": 0.0},
@@ -482,6 +484,8 @@ class XYGridPlot(QWidget):
         for y_value in sorted(y_values, reverse=True):
             for x_value in sorted(x_values):
                 point = (float(x_value), float(y_value))
+                if self.max_abs_coordinate is not None and max(abs(point[0]), abs(point[1])) > self.max_abs_coordinate:
+                    continue
                 if abs(point[0]) + abs(point[1]) <= half_size + 1e-9 and self._point_within_eyelet_bounds(point):
                     points.append(point)
         return points

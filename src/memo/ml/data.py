@@ -18,7 +18,7 @@ def prepare_data(
     targets: str = "xyf",
     random_seed: int = 42,
 ) -> pt.Tensor:
-    X = data[[f"Sensor R{i}" for i in range(1, 9)]].values
+    X = data[["Sensor R1", "Sensor R2", "Sensor R4", "Sensor R5", "Sensor R6", "Sensor R8"]].values
 
     if targets == "xy":
         y = data[["X", "Y"]].values

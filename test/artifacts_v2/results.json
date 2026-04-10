@@ -1,0 +1,53 @@
+{
+  "dataset": {
+    "files": [
+      "C:\\Users\\anh\\Documents\\Repositories\\memo\\data\\recorded_samples\\3D_Messung_01_10N.csv",
+      "C:\\Users\\anh\\Documents\\Repositories\\memo\\data\\recorded_samples\\3D_Messung_02_15N.csv"
+    ],
+    "n_samples_total": 226,
+    "n_unique_positions": 113,
+    "split": {
+      "train_samples": 144,
+      "val_samples": 36,
+      "test_samples": 46
+    }
+  },
+  "models": {
+    "xy_model": {
+      "type": "extra_trees_snap",
+      "validation_tol10_accuracy": 0.2222222222222222,
+      "validation_loss": 0.15985864082578088,
+      "features": "normalized + centered sensor features + ring differences + 40mm grid snap"
+    },
+    "f_model": {
+      "type": "extra_trees_600",
+      "validation_loss": 0.1950928963848882,
+      "features": "raw sensor values"
+    }
+  },
+  "metrics": {
+    "mae": {
+      "X_mm": 41.73913043478261,
+      "Y_mm": 40.869565217391305,
+      "F_N": 0.5780741019602241
+    },
+    "rmse": {
+      "X_mm": 55.32512598464997,
+      "Y_mm": 67.502012852436,
+      "F_N": 0.8052570381219674
+    },
+    "tolerance_accuracy_xy": {
+      "+/-10mm": 0.10869565217391304,
+      "+/-20mm": 0.10869565217391304,
+      "+/-40mm": 0.5217391304347826,
+      "+/-80mm": 0.8260869565217391
+    },
+    "euclidean_accuracy_xy": {
+      "10mm_radius": 0.10869565217391304,
+      "20mm_radius": 0.10869565217391304,
+      "40mm_radius": 0.391304347826087,
+      "80mm_radius": 0.717391304347826
+    },
+    "test_loss": 0.14260087117776532
+  }
+}

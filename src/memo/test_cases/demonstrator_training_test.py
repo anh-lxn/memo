@@ -31,7 +31,7 @@ if __package__ in {None, ""}:
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-SENSOR_COLUMNS = tuple(f"Sensor R{i}" for i in range(1, 9))
+SENSOR_COLUMNS = tuple("Sensor R1, Sensor R2, Sensor R4, Sensor R5, Sensor R6, Sensor R8".split(", "))
 TARGET_COLUMNS = ("X", "Y", "F")
 SENSOR_POSITIONS = [
     (-315, 315),
@@ -51,8 +51,12 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Legacy-style demonstrator training test")
     parser.add_argument(
         "--csv",
-        default="data/recorded_samples/3D_Messung_01_10N.csv",
-        help="Pfad zur CSV-Datei relativ zum Repo oder als absoluter Pfad.",
+        dest="csv_paths",
+        action="append",
+        help=(
+            "Pfad zu einer CSV-Datei relativ zum Repo oder als absoluter Pfad. "
+            "Kann mehrfach angegeben werden. Ohne Angabe werden standardmaessig 10N und 15N kombiniert."
+        ),
     )
     parser.add_argument("--epochs", type=int, default=10000, help="Anzahl Trainingsepochen.")
     parser.add_argument("--lr", type=float, default=0.00205, help="Learning Rate fuer Adam.")
@@ -109,11 +113,28 @@ def resolve_csv_path(path_str: str) -> Path:
     return resolve_repo_root() / path
 
 
-def load_legacy_style_data(csv_path: Path):
-    data = pd.read_csv(csv_path)
-    missing_columns = [column for column in (*TARGET_COLUMNS, *SENSOR_COLUMNS) if column not in data.columns]
-    if missing_columns:
-        raise ValueError(f"CSV is missing required columns: {missing_columns}")
+def resolve_csv_paths(csv_paths: list[str] | None) -> list[Path]:
+    if csv_paths:
+        return [resolve_csv_path(path_str) for path_str in csv_paths]
+
+    repo_root = resolve_repo_root()
+    return [
+        repo_root / "data" / "recorded_samples" / "3D_Messung_01_10N.csv",
+        repo_root / "data" / "recorded_samples" / "3D_Messung_02_15N.csv",
+    ]
+
+
+def load_legacy_style_data(csv_paths: list[Path]):
+    frames: list[pd.DataFrame] = []
+    for csv_path in csv_paths:
+        data = pd.read_csv(csv_path)
+        missing_columns = [column for column in (*TARGET_COLUMNS, *SENSOR_COLUMNS) if column not in data.columns]
+        if missing_columns:
+            raise ValueError(f"CSV is missing required columns: {missing_columns} | file={csv_path}")
+        frames.append(data)
+
+    data = pd.concat(frames, ignore_index=True)
+    print(f"Loaded {len(data)} rows from: {', '.join(str(path) for path in csv_paths)}")
 
     load_pos_x = data["X"].astype(float).tolist()
     load_pos_y = data["Y"].astype(float).tolist()
@@ -202,7 +223,7 @@ class LegacyDemonstratorModel(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(8, 128),
+            nn.Linear(6, 128),
             nn.ReLU(),
             nn.Linear(128, 512),
             nn.ReLU(),
@@ -547,11 +568,13 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     set_seed(args.seed)
 
-    csv_path = resolve_csv_path(args.csv)
-    if not csv_path.exists():
-        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+    csv_paths = resolve_csv_paths(args.csv_paths)
+    missing_paths = [csv_path for csv_path in csv_paths if not csv_path.exists()]
+    if missing_paths:
+        missing_str = ", ".join(str(path) for path in missing_paths)
+        raise FileNotFoundError(f"CSV file not found: {missing_str}")
 
-    load_pos_x, load_pos_y, load_value, strains = load_legacy_style_data(csv_path)
+    load_pos_x, load_pos_y, load_value, strains = load_legacy_style_data(csv_paths)
     create_scatterplot(load_pos_x, load_pos_y, SENSOR_POSITIONS)
 
     variants = ["legacy", "raw", "channel_minmax"] if args.normalization == "compare" else [args.normalization]
