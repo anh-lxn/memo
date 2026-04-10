@@ -21,7 +21,7 @@ try:
 except ImportError:
     pg = None
 
-from memo.acquisition.readers import SerialException, SerialForceReader
+from memo.acquisition.readers import SerialException, SerialForceReader, resolve_force_serial_port
 
 
 def to_utc_timestamp(value: datetime | None) -> float | None:
@@ -243,8 +243,9 @@ class SerialForceTestWindow(QMainWindow):
 
 
 def parse_args(argv=None):
+    default_port = resolve_force_serial_port()
     parser = argparse.ArgumentParser(description="Live test window for serial force measurement")
-    parser.add_argument("--port", default="COM3", help="Serial port of the force measurement device")
+    parser.add_argument("--port", default=default_port, help="Serial port of the force measurement device")
     parser.add_argument("--baudrate", type=int, default=57600, help="Baudrate of the force measurement device")
     parser.add_argument("--timeout", type=float, default=0.01, help="Serial read timeout in seconds")
     parser.add_argument("--refresh-ms", type=int, default=8, help="UI refresh interval in milliseconds")

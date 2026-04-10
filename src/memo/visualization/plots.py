@@ -20,10 +20,12 @@ except ImportError:
 
 
 class LiveSensorPlot(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, baseline_value: float = 2.5, threshold: float = 0.1, parent=None):
         super().__init__(parent)
         if pg is None:
             raise RuntimeError("pyqtgraph is not installed.")
+        self.baseline_value = float(baseline_value)
+        self.threshold = float(threshold)
         self.plot_widget = pg.PlotWidget(background="w")
         self.plot_widget.setMenuEnabled(False)
         self.plot_widget.setMouseEnabled(x=False, y=False)
@@ -48,7 +50,23 @@ class LiveSensorPlot(QWidget):
             brush=pg.mkBrush("#1f77b4"),
             pen=pg.mkPen("#1b5f91", width=1.0),
         )
+        self._threshold_band = pg.LinearRegionItem(
+            values=(self.baseline_value - self.threshold, self.baseline_value + self.threshold),
+            orientation="horizontal",
+            movable=False,
+            brush=pg.mkBrush(245, 158, 11, 70),
+            pen=pg.mkPen(None),
+        )
+        self._baseline_line = pg.InfiniteLine(
+            pos=self.baseline_value,
+            angle=0,
+            movable=False,
+            pen=pg.mkPen("#f59e0b", width=1.5, style=Qt.DashLine),
+        )
+        self._baseline_line.setOpacity(0.7)
+        self.plot_widget.addItem(self._threshold_band)
         self.plot_widget.addItem(self._bar_item)
+        self.plot_widget.addItem(self._baseline_line)
         self._title_label = QLabel("Live Plot der 8 Sensorwerte")
         self._title_label.setAlignment(Qt.AlignCenter)
         self._title_label.setStyleSheet("color: #1f2a37; font-size: 14pt; font-weight: 600;")
@@ -65,8 +83,14 @@ class LiveSensorPlot(QWidget):
     def update_values(self, values):
         values = np.asarray(values, dtype=float)
         heights = np.clip(values[:8], 0.0, None)
-        y_max = max(4.0, float(np.max(heights)) + 0.25) if heights.size else 4.0
+        y_max = max(
+            4.0,
+            self.baseline_value + self.threshold + 0.25,
+            float(np.max(heights)) + 0.25,
+        ) if heights.size else max(4.0, self.baseline_value + self.threshold + 0.25)
         self.plot_widget.setYRange(0.0, y_max, padding=0.02)
+        self._threshold_band.setRegion((self.baseline_value - self.threshold, self.baseline_value + self.threshold))
+        self._baseline_line.setValue(self.baseline_value)
         self._bar_item.setOpts(x=np.arange(1, len(heights) + 1, dtype=float), height=heights)
 
 
@@ -107,6 +131,7 @@ class LiveForcePlot(QWidget):
             self.plot_widget.getAxis("bottom").setStyle(showValues=False, tickLength=0)
             self.plot_widget.setLabel("bottom", "")
         self.plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.plot_widget.getPlotItem().vb.setLimits()
         self._band_item = pg.LinearRegionItem(
             values=(self.target_force - self.threshold, self.target_force + self.threshold),
             orientation="horizontal",
@@ -139,6 +164,21 @@ class LiveForcePlot(QWidget):
         self.plot_widget.setYRange(min_force, max_force, padding=0.02)
         self._band_item.setRegion((self.target_force - self.threshold, self.target_force + self.threshold))
         self._target_line.setValue(self.target_force)
+        if self.center_latest_value:
+            half_window = self.history_seconds / 2.0
+            self.plot_widget.setXRange(-half_window, half_window, padding=0.0)
+            if self.fixed_grid:
+                self.plot_widget.getPlotItem().vb.setLimits(
+                    xMin=-half_window,
+                    xMax=half_window,
+                )
+        else:
+            self.plot_widget.setXRange(0.0, self.history_seconds, padding=0.0)
+            if self.fixed_grid:
+                self.plot_widget.getPlotItem().vb.setLimits(
+                    xMin=0.0,
+                    xMax=self.history_seconds,
+                )
 
     def append_value(self, timestamp: datetime, value: float):
         self.append_values([(timestamp, value)])
@@ -185,10 +225,9 @@ class LiveForcePlot(QWidget):
 
     def _redraw(self):
         self._update_static_ranges()
-        reference_time = self.current_time.timestamp() if self.current_time is not None else None
-
-        if self.timestamps and reference_time is not None:
-            x_values = np.array([timestamp.timestamp() - reference_time for timestamp in self.timestamps], dtype=float)
+        if self.timestamps:
+            latest_ts = self.timestamps[-1].timestamp()
+            x_values = np.array([timestamp.timestamp() - latest_ts for timestamp in self.timestamps], dtype=float)
             if not self.center_latest_value:
                 x_values += self.history_seconds
             y_values = np.array(self.values, dtype=float)
@@ -198,24 +237,13 @@ class LiveForcePlot(QWidget):
             trace_color = "#5f6b7a" if self.stream_active else "#98a2ad"
             self._curve.setPen(pg.mkPen(trace_color, width=2))
             self._curve.setData(x_values, y_values)
-            marker_x = 0.0 if self.center_latest_value else self.history_seconds
+            marker_x = 0.0 if self.center_latest_value else float(x_values[-1])
             self._marker.setBrush(pg.mkBrush(latest_color))
             self._marker.setPen(pg.mkPen(latest_color))
             self._marker.setData([marker_x], [latest_value])
-
-            if self.center_latest_value:
-                half_window = self.history_seconds / 2.0
-                self.plot_widget.setXRange(-half_window, half_window, padding=0.0)
-            else:
-                self.plot_widget.setXRange(0.0, self.history_seconds, padding=0.0)
         else:
             self._curve.setData([], [])
             self._marker.setData([], [])
-            if self.center_latest_value:
-                half_window = self.history_seconds / 2.0
-                self.plot_widget.setXRange(-half_window, half_window, padding=0.0)
-            else:
-                self.plot_widget.setXRange(0.0, self.history_seconds, padding=0.0)
 
 
 class XYGridPlot(QWidget):
@@ -668,42 +696,55 @@ class CalibrationStatusPanel(QWidget):
     def _build_layout(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
         title = QLabel("Kalibrierung / Basisspannung")
-        title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        title.setStyleSheet("font-weight: bold; font-size: 18px;")
         self.summary_label = QLabel("Kalibrierung nicht gestartet")
         self.summary_label.setWordWrap(True)
-        self.summary_label.setStyleSheet("font-size: 12px;")
+        self.summary_label.setStyleSheet("font-size: 15px;")
         layout.addWidget(title)
         layout.addWidget(self.summary_label)
 
         grid = QGridLayout()
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(4)
-        grid.addWidget(QLabel("Sensor"), 0, 0)
-        grid.addWidget(QLabel("Basis"), 0, 1)
-        grid.addWidget(QLabel("Live"), 0, 2)
-        grid.addWidget(QLabel("Status"), 0, 3)
+        grid.setContentsMargins(6, 8, 6, 8)
+        grid.setHorizontalSpacing(18)
+        grid.setVerticalSpacing(16)
+        header_sensor = QLabel("Sensor")
+        header_basis = QLabel("Basis")
+        header_live = QLabel("Live")
+        header_status = QLabel("Status")
+        for header in (header_sensor, header_basis, header_live, header_status):
+            header.setStyleSheet("font-size: 14px; font-weight: 600;")
+            header.setMinimumHeight(28)
+            header.setContentsMargins(0, 2, 0, 6)
+        grid.addWidget(header_sensor, 0, 0)
+        grid.addWidget(header_basis, 0, 1)
+        grid.addWidget(header_live, 0, 2)
+        grid.addWidget(header_status, 0, 3)
         grid.setColumnStretch(0, 0)
         grid.setColumnStretch(1, 0)
         grid.setColumnStretch(2, 0)
         grid.setColumnStretch(3, 1)
-        grid.setColumnMinimumWidth(0, 46)
-        grid.setColumnMinimumWidth(1, 62)
-        grid.setColumnMinimumWidth(2, 62)
-        grid.setColumnMinimumWidth(3, 110)
+        grid.setColumnMinimumWidth(0, 110)
+        grid.setColumnMinimumWidth(1, 110)
+        grid.setColumnMinimumWidth(2, 110)
+        grid.setColumnMinimumWidth(3, 180)
 
         for index, baseline in enumerate(self.baseline_values, start=1):
             sensor_label = QLabel(f"R{index}")
             baseline_label = QLabel(f"{baseline:.3f}")
             live_label = QLabel("-")
             status_label = QLabel("Nicht kalibriert")
-            sensor_label.setStyleSheet("font-size: 12px;")
-            baseline_label.setStyleSheet("font-size: 12px;")
-            live_label.setStyleSheet("font-size: 12px;")
-            status_label.setMinimumWidth(110)
+            sensor_label.setStyleSheet("font-size: 14px; font-weight: 600; padding-right: 12px;")
+            baseline_label.setStyleSheet("font-size: 14px;")
+            live_label.setStyleSheet("font-size: 14px;")
+            sensor_label.setMinimumHeight(34)
+            baseline_label.setMinimumHeight(34)
+            live_label.setMinimumHeight(34)
+            status_label.setMinimumWidth(180)
+            status_label.setMinimumHeight(34)
             status_label.setStyleSheet(
-                "background-color: #f8d7da; color: #721c24; padding: 3px 6px; font-size: 11px;"
+                "background-color: #f8d7da; color: #721c24; padding: 4px 8px; font-size: 13px;"
             )
             grid.addWidget(sensor_label, index, 0)
             grid.addWidget(baseline_label, index, 1)
@@ -734,7 +775,7 @@ class CalibrationStatusPanel(QWidget):
                 live_label.setText("-")
                 status_label.setText("Keine Live-Daten")
                 status_label.setStyleSheet(
-                    "background-color: #e2e3e5; color: #41464b; padding: 3px 6px; font-size: 11px;"
+                    "background-color: #e2e3e5; color: #41464b; padding: 4px 8px; font-size: 13px;"
                 )
                 continue
 
@@ -744,17 +785,17 @@ class CalibrationStatusPanel(QWidget):
                 matched_count += 1
                 status_label.setText("Kalibriert")
                 status_label.setStyleSheet(
-                    "background-color: #d4edda; color: #155724; padding: 3px 6px; font-size: 11px;"
+                    "background-color: #d4edda; color: #155724; padding: 4px 8px; font-size: 13px;"
                 )
             elif self.calibration_active:
                 status_label.setText("Nicht kal.")
                 status_label.setStyleSheet(
-                    "background-color: #f8d7da; color: #721c24; padding: 3px 6px; font-size: 11px;"
+                    "background-color: #f8d7da; color: #721c24; padding: 4px 8px; font-size: 13px;"
                 )
             else:
                 status_label.setText("Bereit")
                 status_label.setStyleSheet(
-                    "background-color: #e2e3e5; color: #41464b; padding: 3px 6px; font-size: 11px;"
+                    "background-color: #e2e3e5; color: #41464b; padding: 4px 8px; font-size: 13px;"
                 )
 
         if self.calibration_active:

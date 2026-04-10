@@ -4,7 +4,9 @@ from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime
+import os
 import re
+import sys
 import threading
 
 import numpy as np
@@ -34,6 +36,52 @@ except ImportError:  # pragma: no cover - depends on local environment
 
 
 SENSOR_COLUMNS = [f"Sensor R{i}" for i in range(1, 9)]
+
+FORCE_SERIAL_WINDOWS_FALLBACKS = ("COM6", "COM5", "COM4", "COM3")
+FORCE_SERIAL_LINUX_FALLBACKS = ("/dev/ttyUSB0", "/dev/ttyACM0", "/dev/serial0")
+
+
+def _looks_like_force_port(description: str, hwid: str, device: str) -> bool:
+    text = " ".join(part for part in (description, hwid, device) if part).lower()
+    return any(token in text for token in ("usb", "serial", "uart", "ch340", "cp210", "acm", "ttyusb", "arduino"))
+
+
+def resolve_force_serial_port(port: str | None = None) -> str:
+    """Return the requested force port or a platform-appropriate default."""
+
+    env_port = os.environ.get("MEMO_FORCE_PORT", "").strip()
+    if port:
+        return port
+    if env_port:
+        return env_port
+
+    detected_ports: list[str] = []
+    if serial is not None:
+        try:
+            from serial.tools import list_ports
+
+            preferred_ports = []
+            fallback_ports = []
+            for port_info in list_ports.comports():
+                device = getattr(port_info, "device", "") or ""
+                description = getattr(port_info, "description", "") or ""
+                hwid = getattr(port_info, "hwid", "") or ""
+                if not device:
+                    continue
+                if _looks_like_force_port(description, hwid, device):
+                    preferred_ports.append(device)
+                else:
+                    fallback_ports.append(device)
+            detected_ports = preferred_ports + fallback_ports
+        except Exception:
+            detected_ports = []
+
+    if detected_ports:
+        return detected_ports[0]
+
+    if sys.platform.startswith("win"):
+        return FORCE_SERIAL_WINDOWS_FALLBACKS[0]
+    return FORCE_SERIAL_LINUX_FALLBACKS[0]
 
 
 class SensorReader(ABC):
@@ -86,14 +134,14 @@ class Ads1115Reader(SensorReader):
         ]
 
     def read(self) -> SensorFrame:
-        sensor_r2 = self._channels[0].voltage
-        sensor_r3 = self._channels[1].voltage
-        sensor_r4 = self._channels[2].voltage
-        sensor_r1 = self._channels[3].voltage
-        sensor_r8 = self._channels[4].voltage
-        sensor_r7 = self._channels[5].voltage
-        sensor_r6 = self._channels[6].voltage
-        sensor_r5 = self._channels[7].voltage
+        sensor_r1 = self._channels[0].voltage
+        sensor_r2 = self._channels[1].voltage
+        sensor_r3 = self._channels[2].voltage
+        sensor_r4 = self._channels[3].voltage
+        sensor_r5 = self._channels[4].voltage
+        sensor_r6 = self._channels[5].voltage
+        sensor_r7 = self._channels[6].voltage
+        sensor_r8 = self._channels[7].voltage
 
         sensors = np.array(
             [
@@ -124,11 +172,12 @@ class Ads1115Reader(SensorReader):
 class SerialForceReader:
     """Reads live force values from a serial connection."""
 
-    port: str = "COM3"
+    port: str | None = None
     baudrate: int = 57600
     timeout: float = 0.2
 
     def __post_init__(self):
+        self.port = resolve_force_serial_port(self.port)
         self._serial = None
         self._number_pattern = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
         self._lock = threading.Lock()

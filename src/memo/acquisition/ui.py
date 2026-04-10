@@ -33,6 +33,7 @@ from memo.acquisition.readers import (
     Ads1115Reader,
     CsvReplayReader,
     MockReader,
+    resolve_force_serial_port,
     SerialException,
     SerialForceReader,
     SerialSensorReader,
@@ -56,15 +57,21 @@ Y_LIMITS = (-MEMBRANE_DIAGONAL / 2 - OFFSET, MEMBRANE_DIAGONAL / 2 + OFFSET)
 REFRESH_MS = 20
 FORCE_REFRESH_MS = 20
 SENSOR_UI_REFRESH_MS = 120
-CALIBRATION_SENSOR_UI_REFRESH_MS = 350
-FORCE_SERIAL_PORT = 'COM3'
+CALIBRATION_SENSOR_UI_REFRESH_MS = 120
+FORCE_SERIAL_PORT = resolve_force_serial_port()
 FORCE_SERIAL_BAUDRATE = 57600
 FORCE_STREAM_TIMEOUT_S = 0.5
 FORCE_TARGET_TOLERANCE_N = 0.5
 FORCE_TARGET_HOLD_S = 5.0
-BASELINE_SENSOR_VALUES = np.array([0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000], dtype=float)
-CALIBRATION_TOLERANCE = 0.050
-DEBUG_SENSOR_MODE = True
+FORCE_PLOT_HISTORY_S = 8.0
+FORCE_DISPLAY_HISTORY_LENGTH = 9
+FORCE_DISPLAY_SMOOTHING_ALPHA = 0.20
+FORCE_PLOT_UI_REFRESH_MS = 50
+FORCE_PLOT_MAX_BATCH_POINTS = 240
+BASELINE_SENSOR_VALUES = np.full(8, 2.5, dtype=float)
+SENSOR_BASELINE_THRESHOLD_V = 0.1
+CALIBRATION_TOLERANCE = 0.100
+DEBUG_SENSOR_MODE = False
 
 
 def _to_utc_timestamp(value: datetime | None) -> float | None:
@@ -93,6 +100,10 @@ class AcquisitionWindow(QMainWindow):
         self._auto_capture_in_progress = False
         self._last_force_sample_id = 0
         self._last_sensor_ui_update_ts = 0.0
+        self._force_display_history: deque[float] = deque(maxlen=FORCE_DISPLAY_HISTORY_LENGTH)
+        self._force_display_value: float | None = None
+        self._last_force_plot_update_ts = 0.0
+        self._pending_force_plot_samples: deque[tuple[datetime, float]] = deque()
 
         self.setWindowTitle('MeMo Acquisition')
         self.resize(1920, 1080)
@@ -106,6 +117,7 @@ class AcquisitionWindow(QMainWindow):
         self.capture_button = QPushButton('Starte automatische Punktaufnahme')
         self.point_reset_button = QPushButton('Punkt resetten')
         self.measurement_reset_button = QPushButton('Messung resetten')
+        self.screenshot_button = QPushButton('Screenshot speichern')
         self.exit_button = QPushButton('Beenden')
         self.force_input = QSpinBox()
         self.force_input.setRange(-1000, 1000)
@@ -113,9 +125,12 @@ class AcquisitionWindow(QMainWindow):
         self.force_input.setSuffix(' N')
         self.force_input.setValue(5)
 
-        self.live_plot = LiveSensorPlot()
+        self.live_plot = LiveSensorPlot(
+            baseline_value=float(BASELINE_SENSOR_VALUES[0]),
+            threshold=SENSOR_BASELINE_THRESHOLD_V,
+        )
         self.force_plot = LiveForcePlot(
-            history_seconds=5.0,
+            history_seconds=FORCE_PLOT_HISTORY_S,
             target_force=float(self.force_input.value()),
             threshold=FORCE_TARGET_TOLERANCE_N,
             hide_x_tick_labels=True,
@@ -162,6 +177,7 @@ class AcquisitionWindow(QMainWindow):
         self.capture_button.clicked.connect(self.toggle_auto_capture)
         self.point_reset_button.clicked.connect(self.reset_point)
         self.measurement_reset_button.clicked.connect(self.reset_measurement)
+        self.screenshot_button.clicked.connect(self.save_screenshot)
         self.exit_button.clicked.connect(self.close)
         self.force_input.valueChanged.connect(self._update_force_target)
 
@@ -224,7 +240,7 @@ class AcquisitionWindow(QMainWindow):
         info_layout.addLayout(status_grid)
         info_layout.addStretch(1)
 
-        self.calibration_panel.setMaximumHeight(230)
+        self.calibration_panel.setMinimumHeight(320)
         bottom_layout.addWidget(info_panel, stretch=2)
         bottom_layout.addWidget(self.calibration_panel, stretch=2)
         main_layout.addLayout(bottom_layout, stretch=0)
@@ -248,6 +264,7 @@ class AcquisitionWindow(QMainWindow):
         row2.addWidget(self.start_button)
         row2.addWidget(self.calibrate_button)
         row2.addWidget(self.measurement_reset_button)
+        row2.addWidget(self.screenshot_button)
         row2.addWidget(self.exit_button)
         row2.addStretch(1)
         layout.addLayout(row2)
@@ -299,7 +316,7 @@ class AcquisitionWindow(QMainWindow):
         self.measurement_input.setMinimumWidth(90)
         self.force_input.setMinimumWidth(90)
 
-        for button in [self.start_button, self.calibrate_button, self.point_reset_button, self.measurement_reset_button, self.exit_button]:
+        for button in [self.start_button, self.calibrate_button, self.point_reset_button, self.measurement_reset_button, self.screenshot_button, self.exit_button]:
             button.setMinimumHeight(40)
         self.capture_button.setMinimumHeight(46)
         self.capture_button.setMinimumWidth(260)
@@ -364,6 +381,11 @@ class AcquisitionWindow(QMainWindow):
                 color: #1f2a37;
                 border: 1px solid #d79a2c;
             }
+            QPushButton[text="Screenshot speichern"] {
+                background-color: #2563eb;
+                color: white;
+                border: 1px solid #1d4ed8;
+            }
             QPushButton[text="Beenden"] {
                 background-color: #b42318;
                 color: white;
@@ -401,6 +423,50 @@ class AcquisitionWindow(QMainWindow):
             f'Kraft innerhalb Toleranz halten: 0.0 / {FORCE_TARGET_HOLD_S:.1f} s'
         )
 
+    def _filter_display_force(self, value: float) -> float:
+        raw_value = float(value)
+
+        if len(self._force_display_history) >= 5:
+            history = np.asarray(self._force_display_history, dtype=float)
+            median = float(np.median(history))
+            mad = float(np.median(np.abs(history - median)))
+            deviation_limit = max(0.20, 6.0 * mad)
+            if abs(raw_value - median) > deviation_limit:
+                raw_value = median + np.sign(raw_value - median) * deviation_limit
+
+        self._force_display_history.append(raw_value)
+
+        if self._force_display_value is None:
+            self._force_display_value = raw_value
+        else:
+            alpha = FORCE_DISPLAY_SMOOTHING_ALPHA
+            self._force_display_value = ((1.0 - alpha) * self._force_display_value) + (alpha * raw_value)
+
+        return float(self._force_display_value)
+
+    def _downsample_force_plot_samples(self, samples: list[tuple[datetime, float]]) -> list[tuple[datetime, float]]:
+        if len(samples) <= FORCE_PLOT_MAX_BATCH_POINTS:
+            return samples
+
+        step = max(1, len(samples) // FORCE_PLOT_MAX_BATCH_POINTS)
+        reduced = samples[::step]
+        if reduced[-1] != samples[-1]:
+            reduced.append(samples[-1])
+        return reduced
+
+    def _flush_force_plot(self, now_ts: float, force: bool = False):
+        should_update_plot = force or (
+            self._last_force_plot_update_ts == 0.0
+            or (now_ts - self._last_force_plot_update_ts) >= (FORCE_PLOT_UI_REFRESH_MS / 1000.0)
+        )
+        if not should_update_plot or not self._pending_force_plot_samples:
+            return
+
+        plot_samples = self._downsample_force_plot_samples(list(self._pending_force_plot_samples))
+        self._pending_force_plot_samples.clear()
+        self.force_plot.append_values(plot_samples)
+        self._last_force_plot_update_ts = now_ts
+
     def _update_force_hold_progress(self, force_value: float | None, timestamp: datetime | None, stream_active: bool):
         if force_value is None or timestamp is None or not stream_active:
             self._reset_force_hold_progress()
@@ -430,6 +496,21 @@ class AcquisitionWindow(QMainWindow):
     def _measurement_path(self, measurement_number: int) -> Path:
         force_value = int(self.force_input.value())
         return self.output_dir / f'3D_Messung_{measurement_number:02d}_{force_value}N.csv'
+
+    def save_screenshot(self):
+        desktop_dir = Path.home() / 'Desktop'
+        desktop_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        screenshot_path = desktop_dir / f'memo_ui_{timestamp}.png'
+        pixmap = self.grab()
+        if pixmap.isNull():
+            QMessageBox.warning(self, 'Screenshot fehlgeschlagen', 'Das Fenster konnte nicht als Bild gespeichert werden.')
+            return
+        if not pixmap.save(str(screenshot_path), 'PNG'):
+            QMessageBox.warning(self, 'Screenshot fehlgeschlagen', f'Die Datei konnte nicht gespeichert werden:\n{screenshot_path}')
+            return
+        self.status_label.setText(f'Screenshot gespeichert: {screenshot_path.name}')
+        QMessageBox.information(self, 'Screenshot gespeichert', f'Der Screenshot wurde gespeichert unter:\n{screenshot_path}')
 
     def _has_started_measurement(self) -> bool:
         return self.recorder is not None and self.recorder.sample_count > 0
@@ -734,28 +815,28 @@ class AcquisitionWindow(QMainWindow):
             self._last_force_sample_id = new_force_samples[-1][0]
         stream_active = (
             force_timestamp_ts is not None
-            and (now_ts - force_timestamp_ts) <= FORCE_STREAM_TIMEOUT_S
+            and (now_ts - force_timestamp_ts) <= max(FORCE_STREAM_TIMEOUT_S, FORCE_REFRESH_MS / 1000.0 * 3.0)
         )
-        self.force_plot.set_stream_active(stream_active)
-        if force_value is None:
-            self.force_plot.advance_time(now)
+        if force_value is None or not stream_active:
+            self.force_plot.set_stream_active(False)
             self.force_raw_label.setText(self.force_reader.get_last_raw_text() or '-')
             self.force_reader_status_label.setText(self.force_reader.connection_info())
             self._reset_force_hold_progress()
             return
+        self.force_plot.set_stream_active(True)
 
         self.latest_force_value = force_value
+        display_value = self._force_display_value if self._force_display_value is not None else force_value
         if new_force_samples:
-            plot_samples: list[tuple[datetime, float]] = []
             for _, sample_timestamp, sample_force in new_force_samples:
-                plot_samples.append((sample_timestamp, sample_force))
-                self._update_force_hold_progress(sample_force, sample_timestamp, stream_active)
-            self.force_plot.append_values(plot_samples)
+                filtered_sample_force = self._filter_display_force(sample_force)
+                self._pending_force_plot_samples.append((sample_timestamp, filtered_sample_force))
+                self._update_force_hold_progress(filtered_sample_force, sample_timestamp, stream_active)
+                display_value = filtered_sample_force
+            self._flush_force_plot(now_ts)
         else:
-            timestamp = force_timestamp if force_timestamp is not None else now
-            self.force_plot.advance_time(timestamp)
-            self.force_plot.append_value(timestamp, force_value)
-        self.force_value_label.setText(f'{force_value:.3f} N')
+            self._flush_force_plot(now_ts, force=True)
+        self.force_value_label.setText(f'{display_value:.3f} N')
         self.force_raw_label.setText(self.force_reader.get_last_raw_text() or '-')
         self.force_reader_status_label.setText(self.force_reader.connection_info())
 
