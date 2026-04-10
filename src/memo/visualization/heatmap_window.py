@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
+import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib import colormaps
@@ -11,6 +14,7 @@ from matplotlib.colors import Normalize
 from matplotlib.patches import Rectangle
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QCloseEvent
 from PyQt5.QtWidgets import (
     QApplication,
     QFormLayout,
@@ -23,7 +27,20 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+if __package__ in {None, ""}:
+    src_dir = Path(__file__).resolve().parents[2]
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
 
+from memo.acquisition.readers import Ads1115Reader, CsvReplayReader, MockReader, SerialSensorReader, UnavailableSensorReader
+from memo.ml.inference import ModelPredictor
+from memo.ml.models import MembraneModel
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_MODEL_PATH = PROJECT_ROOT / "models" / "final_models" / "model_xyf.pt"
+DEFAULT_NORMALIZATION_CSV = PROJECT_ROOT / "data" / "recorded_samples" / "3D_Messung_01_10N.csv"
+SENSOR_COLUMNS = [f"Sensor R{i}" for i in range(1, 9)]
 MEMBRANE_SIZE = 350.0
 OFFSET = 30.0
 X_LIMITS = (-MEMBRANE_SIZE / 2 - OFFSET, MEMBRANE_SIZE / 2 + OFFSET)
@@ -32,9 +49,44 @@ GRID_SPACING = 50.0
 FORCE_RANGE = (0.0, 20.0)
 UPDATE_MS = 140
 ISO_UPDATE_EVERY = 3
-DEMO_SEED = 7
 HEATMAP_VMAX = 2.6
 ENABLE_XY_INTERACTION = False
+TEMPORAL_SMOOTHING_ALPHA = 0.22
+
+
+def _load_normalization_stats(csv_path: Path | None) -> tuple[np.ndarray | None, np.ndarray | None]:
+    if csv_path is None or not csv_path.exists():
+        return None, None
+
+    data = pd.read_csv(csv_path)
+    missing_columns = [column for column in SENSOR_COLUMNS if column not in data.columns]
+    if missing_columns:
+        raise ValueError(f"CSV fuer Normalisierung fehlt Sensor-Spalten: {', '.join(missing_columns)}")
+    sensor_data = data[SENSOR_COLUMNS]
+    return sensor_data.min().to_numpy(dtype=float), sensor_data.max().to_numpy(dtype=float)
+
+
+def build_reader(replay_csv: str | None, sensor_port: str | None, sensor_baudrate: int, sensor_timeout: float, use_mock: bool):
+    if use_mock:
+        return MockReader(seed=7, baseline=2.5, noise_std=0.08)
+    if replay_csv:
+        return CsvReplayReader(replay_csv, loop=True)
+    if sensor_port:
+        return SerialSensorReader(
+            port=sensor_port,
+            baudrate=sensor_baudrate,
+            timeout=sensor_timeout,
+        )
+    try:
+        return Ads1115Reader()
+    except RuntimeError as exc:
+        return UnavailableSensorReader(
+            reason=(
+                "ADS1115 ist in dieser Umgebung nicht verfuegbar. "
+                "Bitte mit --mock, --replay-csv oder --sensor-port starten. "
+                f"Details: {exc}"
+            )
+        )
 
 
 class XYHeatmapPlot(QWidget):
@@ -303,8 +355,14 @@ class ForceBarPlot(QWidget):
 
 
 class HeatmapWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, reader, predictor: ModelPredictor, update_ms: int = UPDATE_MS):
         super().__init__()
+        self.reader = reader
+        self.predictor = predictor
+        self.update_ms = int(update_ms)
+        self._smoothed_prediction: np.ndarray | None = None
+        self._last_error: str | None = None
+
         self.setWindowTitle('MeMo Heatmap Visualisierung')
         self.resize(1850, 980)
 
@@ -314,21 +372,18 @@ class HeatmapWindow(QMainWindow):
         self.force_plot = ForceBarPlot()
         self.position_label = QLabel('-')
         self.force_label = QLabel('-')
-        self.status_label = QLabel('Demo aktiv')
-        self.toggle_button = QPushButton('Live Demo stoppen')
+        self.status_label = QLabel('Modell wird geladen')
+        self.toggle_button = QPushButton('Live-Prediction stoppen')
         self.elev_input = QSpinBox()
         self.azim_input = QSpinBox()
-
-        self.demo_samples = self._build_demo_samples()
-        self.demo_index = 0
         self.iso_frame_counter = 0
         self.timer = QTimer(self)
-        self.timer.setInterval(UPDATE_MS)
+        self.timer.setInterval(self.update_ms)
 
         self._build_ui()
         self._apply_styles()
         self._connect_signals()
-        self._step_demo()
+        self._step_prediction()
         self.timer.start()
 
     def _build_ui(self):
@@ -428,51 +483,21 @@ class HeatmapWindow(QMainWindow):
         """)
 
     def _connect_signals(self):
-        self.timer.timeout.connect(self._step_demo)
-        self.toggle_button.clicked.connect(self._toggle_demo)
+        self.timer.timeout.connect(self._step_prediction)
+        self.toggle_button.clicked.connect(self._toggle_prediction)
         self.elev_input.valueChanged.connect(self._update_view)
         self.azim_input.valueChanged.connect(self._update_view)
 
-    def _build_demo_samples(self):
-        rng = np.random.default_rng(DEMO_SEED)
-        half = MEMBRANE_SIZE / 2.0 - 24.0
-        anchor_count = 9
-        anchor_points = np.column_stack((
-            rng.uniform(-half * 0.75, half * 0.75, size=anchor_count),
-            rng.uniform(-half * 0.75, half * 0.75, size=anchor_count),
-        ))
-        anchor_points[0] = np.array([0.0, 110.0])
-        anchor_points[-1] = anchor_points[0]
-
-        frames = []
-        steps_between = 16
-        for start, end in zip(anchor_points[:-1], anchor_points[1:]):
-            for alpha in np.linspace(0.0, 1.0, steps_between, endpoint=False):
-                point = (1.0 - alpha) * start + alpha * end
-                phase = len(frames) / 8.0
-                force_value = 9.5 + 6.0 * np.sin(phase) + 1.8 * np.cos(phase * 0.7)
-                force_value = float(np.clip(force_value, FORCE_RANGE[0], FORCE_RANGE[1]))
-                intensity = 0.9 + (force_value / FORCE_RANGE[1]) * 1.5
-                sigma = 26.0 + 12.0 * (0.5 + 0.5 * np.sin(phase * 0.5))
-                frames.append({
-                    'x': float(point[0]),
-                    'y': float(point[1]),
-                    'force': force_value,
-                    'intensity': float(intensity),
-                    'sigma': float(sigma),
-                })
-        return frames
-
-    def _toggle_demo(self):
+    def _toggle_prediction(self):
         if self.timer.isActive():
             self.timer.stop()
-            self.status_label.setText('Demo pausiert')
-            self.toggle_button.setText('Live Demo starten')
+            self.status_label.setText('Live-Prediction pausiert')
+            self.toggle_button.setText('Live-Prediction starten')
             return
 
         self.timer.start()
-        self.status_label.setText('Demo aktiv')
-        self.toggle_button.setText('Live Demo stoppen')
+        self.status_label.setText('Live-Prediction aktiv')
+        self.toggle_button.setText('Live-Prediction stoppen')
 
     def _update_view(self):
         self.iso_plot.set_view(self.elev_input.value(), self.azim_input.value())
@@ -480,37 +505,104 @@ class HeatmapWindow(QMainWindow):
     def _handle_xy_click(self, x_value: float, y_value: float):
         if self.timer.isActive():
             self.timer.stop()
-            self.toggle_button.setText('Live Demo starten')
+            self.toggle_button.setText('Live-Prediction starten')
 
         self.plot.set_heatmap(x_value, y_value, 1.4, 32.0)
         self.iso_plot.update_heatmap(x_value, y_value, 1.4, 32.0)
         self.position_label.setText(f"X={x_value:.1f}, Y={y_value:.1f}")
         self.status_label.setText('Manueller Punkt aus XY-Plot')
 
-    def _step_demo(self):
-        if not self.demo_samples:
-            return
-        sample = self.demo_samples[self.demo_index]
-        self.demo_index = (self.demo_index + 1) % len(self.demo_samples)
+    def _smooth_prediction(self, prediction: np.ndarray) -> np.ndarray:
+        prediction = np.asarray(prediction, dtype=float).reshape(-1)
+        if self._smoothed_prediction is None:
+            self._smoothed_prediction = prediction.copy()
+        else:
+            alpha = TEMPORAL_SMOOTHING_ALPHA
+            self._smoothed_prediction = ((1.0 - alpha) * self._smoothed_prediction) + (alpha * prediction)
+        return self._smoothed_prediction
 
-        self.plot.set_heatmap(sample['x'], sample['y'], sample['intensity'], sample['sigma'])
-        if self.iso_frame_counter % ISO_UPDATE_EVERY == 0:
-            self.iso_plot.update_heatmap(sample['x'], sample['y'], sample['intensity'], sample['sigma'])
-        self.iso_frame_counter += 1
-        self.force_plot.set_force(sample['force'])
-        self.position_label.setText(f"X={sample['x']:.1f}, Y={sample['y']:.1f}")
-        self.force_label.setText(f"{sample['force']:.1f} N")
+    def _step_prediction(self):
+        try:
+            frame = self.reader.read()
+            sensor_values = np.asarray(frame.sensors, dtype=float)
+            prediction = np.asarray(self.predictor.predict(sensor_values), dtype=float).reshape(-1)
+            if prediction.size < 3:
+                raise ValueError('Das model_xyf liefert weniger als drei Ausgabewerte.')
+
+            smoothed = self._smooth_prediction(prediction[:3])
+            x_value = float(np.clip(smoothed[0], X_LIMITS[0], X_LIMITS[1]))
+            y_value = float(np.clip(smoothed[1], Y_LIMITS[0], Y_LIMITS[1]))
+            force_value = float(np.clip(smoothed[2], FORCE_RANGE[0], FORCE_RANGE[1]))
+            intensity = 0.9 + (force_value / max(FORCE_RANGE[1], 1.0)) * 1.5
+            sigma = 28.0 + 10.0 * (force_value / max(FORCE_RANGE[1], 1.0))
+
+            self.plot.set_heatmap(x_value, y_value, intensity, sigma)
+            if self.iso_frame_counter % ISO_UPDATE_EVERY == 0:
+                self.iso_plot.update_heatmap(x_value, y_value, intensity, sigma)
+            self.iso_frame_counter += 1
+
+            self.force_plot.set_force(force_value)
+            self.position_label.setText(f"X={x_value:.1f}, Y={y_value:.1f}")
+            self.force_label.setText(f"{force_value:.1f} N")
+            self.status_label.setText(f"Live-Vorhersage aktiv ({frame.source})")
+            self._last_error = None
+        except StopIteration:
+            self.timer.stop()
+            self.status_label.setText('Replay beendet')
+            self.toggle_button.setText('Live-Prediction starten')
+        except Exception as exc:
+            message = str(exc)
+            if message != self._last_error:
+                self.status_label.setText(f'Fehler: {message}')
+                self._last_error = message
+
+    def closeEvent(self, event: QCloseEvent):
+        self.timer.stop()
+        close_method = getattr(self.reader, 'close', None)
+        if callable(close_method):
+            close_method()
+        event.accept()
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description='MeMo heatmap visualization window')
+    parser.add_argument('--model-path', default=str(DEFAULT_MODEL_PATH), help='Pfad zu model_xyf.pt')
+    parser.add_argument(
+        '--normalization-csv',
+        default=str(DEFAULT_NORMALIZATION_CSV),
+        help='CSV fuer Min/Max-Normalisierung der acht Sensorspalten',
+    )
+    parser.add_argument('--replay-csv', default=None, help='CSV-Replay statt Live-Hardware')
+    parser.add_argument('--sensor-port', default=None, help='Serieller Port fuer 8 Sensorsignale')
+    parser.add_argument('--sensor-baudrate', type=int, default=57600, help='Baudrate des seriellen Sensorreaders')
+    parser.add_argument('--sensor-timeout', type=float, default=0.2, help='Timeout des seriellen Sensorreaders')
+    parser.add_argument('--mock', action='store_true', help='Verwendet Mock-Sensordaten statt echter Hardware')
+    parser.add_argument('--cpu', action='store_true', help='Erzwingt Vorhersage auf CPU')
+    parser.add_argument('--update-ms', type=int, default=UPDATE_MS, help='UI-Updateintervall in Millisekunden')
     return parser.parse_args(argv)
 
 
 def run_heatmap_window(argv=None):
-    parse_args(argv)
+    args = parse_args(argv)
+    mins, maxs = _load_normalization_stats(Path(args.normalization_csv) if args.normalization_csv else None)
+    device = 'cpu' if args.cpu or not torch.cuda.is_available() else 'cuda'
+    predictor = ModelPredictor(
+        model_class=MembraneModel,
+        model_path=str(Path(args.model_path)),
+        output_dim=3,
+        device=device,
+        mins=mins,
+        maxs=maxs,
+    )
+    reader = build_reader(
+        replay_csv=args.replay_csv,
+        sensor_port=args.sensor_port,
+        sensor_baudrate=args.sensor_baudrate,
+        sensor_timeout=args.sensor_timeout,
+        use_mock=args.mock,
+    )
     app = QApplication(sys.argv if argv is None else [sys.argv[0], *argv])
-    window = HeatmapWindow()
+    window = HeatmapWindow(reader=reader, predictor=predictor, update_ms=args.update_ms)
     window.show()
     return app.exec_()
 

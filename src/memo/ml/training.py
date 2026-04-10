@@ -6,13 +6,26 @@ import torch
 
 
 class Trainer:
-    def __init__(self, model, loss_fn, optimizer, device: str = "cuda"):
+    def __init__(
+        self,
+        model,
+        loss_fn,
+        optimizer,
+        device: str = "cuda",
+        patience: int = 50,
+        min_delta: float = 0.0,
+    ):
         self.model = model.to(device)
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.device = device
+        self.patience = patience
+        self.min_delta = min_delta
         self.train_losses = []
         self.val_losses = []
+        self.best_val_loss = float("inf")
+        self.best_epoch = -1
+        self._best_state_dict = None
 
     def train_step(self, batch_x, batch_y):
         self.model.train()
@@ -32,6 +45,8 @@ class Trainer:
 
     def fit(self, train_loader, val_loader, epochs: int = 100, print_status: bool = False):
         print("Starting training...")
+        epochs_without_improvement = 0
+
         for epoch in range(epochs):
             batch_train_losses = []
 
@@ -51,8 +66,29 @@ class Trainer:
             avg_val = np.mean(val_losses)
             self.val_losses.append(avg_val)
 
+            if avg_val < (self.best_val_loss - self.min_delta):
+                self.best_val_loss = avg_val
+                self.best_epoch = epoch
+                self._best_state_dict = {
+                    key: value.detach().cpu().clone() for key, value in self.model.state_dict().items()
+                }
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+
             if print_status and epoch % 50 == 0:
                 print(f"Epoch {epoch} | Train: {avg_train:.4f} | Val: {avg_val:.4f}")
+
+            if epochs_without_improvement >= self.patience:
+                if print_status:
+                    print(
+                        f"Early stopping at epoch {epoch} "
+                        f"(best epoch: {self.best_epoch}, best val: {self.best_val_loss:.4f})"
+                    )
+                break
+
+        if self._best_state_dict is not None:
+            self.model.load_state_dict(self._best_state_dict)
 
     @torch.no_grad()
     def test(self, test_loader):

@@ -2,6 +2,7 @@
 
 from .heatmap_window import HeatmapWindow, XYHeatmapPlot, run_heatmap_window
 from .plots import CalibrationStatusPanel, LiveSensorPlot, XYGridPlot
+from .xy_model_heatmap import XYModelHeatmapWindow, run_xy_model_heatmap
 
 __all__ = [
     "CalibrationStatusPanel",
@@ -9,5 +10,7 @@ __all__ = [
     "LiveSensorPlot",
     "XYGridPlot",
     "XYHeatmapPlot",
+    "XYModelHeatmapWindow",
     "run_heatmap_window",
+    "run_xy_model_heatmap",
 ]

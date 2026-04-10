@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from memo.common.types import NormalizationStats
+from memo.types import NormalizationStats
 
 
 def min_max_normalize(data: pd.DataFrame):
