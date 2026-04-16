@@ -84,9 +84,9 @@ MODE_ONE_LOCK_SENSOR_FILTER = False
 MODE_ONE_FORCE_BASELINE_V = 2.5
 MODE_ONE_FORCE_VOLTS_PER_NEWTON = 0.1
 MODE_ONE_DISTANCE_DECAY_MM = 160.0
-MODE_ONE_NOISE_MAX_V = 0.2
-MODE_ONE_NOISE_STEP_STD_V = 0.015
-MODE_ONE_NOISE_DECAY = 0.92
+MODE_ONE_NOISE_MAX_V = 0.08
+MODE_ONE_NOISE_STEP_STD_V = 0.006
+MODE_ONE_NOISE_DECAY = 0.90
 MODE_ONE_SENSOR_POSITIONS_MM = np.array(
     [
         (-30.0, 200.0),   # R1
@@ -167,7 +167,7 @@ class AcquisitionWindow(QMainWindow):
         self.sensor_baseline_values = np.asarray(BASELINE_SENSOR_VALUES, dtype=float).copy()
         self.reference_sensor_index = DEFAULT_REFERENCE_SENSOR_INDEX
         self.mode_one_force_baseline_v = float(self.sensor_baseline_values[self.reference_sensor_index])
-        self.sensor_source_mode = SENSOR_SOURCE_FORCE_SENSOR
+        self.sensor_source_mode = SENSOR_SOURCE_REAL_ALL
         self._mock_sensor_rng = np.random.default_rng()
         self._mode_one_noise_state = np.zeros(8, dtype=float)
         self.fullscreen_enabled = True
@@ -350,7 +350,7 @@ class AcquisitionWindow(QMainWindow):
         row1 = QHBoxLayout()
         row1.setSpacing(12)
         row1.addWidget(QLabel('Nummer:'))
-        row1.addWidget(self._build_stepper_controls(self.measurement_input))
+        row1.addWidget(self._build_stepper_controls(self.measurement_input, compact=True))
         row1.addStretch(1)
         layout.addLayout(row1)
 
@@ -391,7 +391,7 @@ class AcquisitionWindow(QMainWindow):
         self.sensor_source_input.addItem('Reale Sensordaten', SENSOR_SOURCE_REAL_ALL)
         self.sensor_source_input.addItem('Mock-Daten', SENSOR_SOURCE_MOCK_ALL)
         self.sensor_source_input.addItem('Kraftsensor steuert Referenzsensor', SENSOR_SOURCE_FORCE_SENSOR)
-        self.sensor_source_input.setCurrentIndex(2)
+        self.sensor_source_input.setCurrentIndex(0)
 
         self.reference_sensor_input = QComboBox()
         for index in range(8):
@@ -429,19 +429,22 @@ class AcquisitionWindow(QMainWindow):
         layout.addStretch(1)
         return section
 
-    def _build_stepper_controls(self, spinbox) -> QWidget:
+    def _build_stepper_controls(self, spinbox, compact: bool = False) -> QWidget:
         container = QWidget()
         row = QHBoxLayout(container)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
+        if compact:
+            container.setObjectName('measurementStepperContainer')
+            spinbox.setObjectName('measurementSpinBox')
         spinbox.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         row.addWidget(spinbox, stretch=1)
 
         minus_button = QPushButton('-')
         plus_button = QPushButton('+')
         for button, action in ((minus_button, spinbox.stepDown), (plus_button, spinbox.stepUp)):
-            button.setObjectName('adminStepper')
-            button.setMinimumSize(48, 44)
+            button.setObjectName('measurementStepper' if compact else 'adminStepper')
+            button.setMinimumSize(38, 34) if compact else button.setMinimumSize(48, 44)
             button.clicked.connect(action)
             row.addWidget(button)
         return container
@@ -487,7 +490,7 @@ class AcquisitionWindow(QMainWindow):
         return label
 
     def _apply_styles(self):
-        self.measurement_input.setMinimumWidth(90)
+        self.measurement_input.setMinimumWidth(72)
         self.force_input.setMinimumWidth(90)
 
         for button in [self.start_button, self.mode_two_button, self.calibrate_button, self.admin_button, self.point_reset_button, self.exit_button]:
@@ -675,6 +678,18 @@ class AcquisitionWindow(QMainWindow):
             QPushButton#adminStepper:hover {{
                 background: {hover_bg};
             }}
+            QPushButton#measurementStepper {{
+                background: {admin_stepper_bg};
+                color: #111827;
+                border: 1px solid {admin_stepper_border};
+                border-radius: 8px;
+                font-size: 18px;
+                font-weight: 700;
+                padding: 0px;
+            }}
+            QPushButton#measurementStepper:hover {{
+                background: {hover_bg};
+            }}
             QSpinBox, QDoubleSpinBox, QComboBox {{
                 background: {field_bg};
                 border: 1px solid {field_border};
@@ -682,6 +697,11 @@ class AcquisitionWindow(QMainWindow):
                 padding: 8px 12px;
                 min-height: 40px;
                 font-size: 16px;
+            }}
+            QSpinBox#measurementSpinBox {{
+                padding: 4px 8px;
+                min-height: 32px;
+                font-size: 14px;
             }}
             QCheckBox {{
                 color: {label_color};
