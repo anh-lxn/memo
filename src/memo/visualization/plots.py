@@ -11,7 +11,7 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Circle, Patch, Polygon, Rectangle
 from matplotlib.transforms import Affine2D
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QGridLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QCheckBox, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QWidget, QVBoxLayout
 
 try:
     import pyqtgraph as pg
@@ -26,12 +26,14 @@ class LiveSensorPlot(QWidget):
             raise RuntimeError("pyqtgraph is not installed.")
         self.baseline_value = float(baseline_value)
         self.threshold = float(threshold)
+        self._latest_values = np.zeros(8, dtype=float)
+        self._visible_sensor_indices = list(range(8))
         self.plot_widget = pg.PlotWidget(background="w")
         self.plot_widget.setMenuEnabled(False)
         self.plot_widget.setMouseEnabled(x=False, y=False)
         self.plot_widget.hideButtons()
         self.plot_widget.showGrid(x=True, y=True, alpha=0.18)
-        self.plot_widget.setLabel("left", "Wert")
+        self.plot_widget.setLabel("left", "Verstärkte Spannung in V")
         self.plot_widget.setLabel("bottom", "Sensor")
         self.plot_widget.getAxis("left").setTextPen(pg.mkPen("#344054"))
         self.plot_widget.getAxis("bottom").setTextPen(pg.mkPen("#344054"))
@@ -70,6 +72,9 @@ class LiveSensorPlot(QWidget):
         self._title_label = QLabel("Live Plot der 8 Sensorwerte")
         self._title_label.setAlignment(Qt.AlignCenter)
         self._title_label.setStyleSheet("color: #1f2a37; font-size: 14pt; font-weight: 600;")
+        self._sensor_filter_panel = QWidget()
+        self._sensor_filter_panel.setObjectName("sensorFilterPanel")
+        self._sensor_checkboxes: list[QCheckBox] = []
         self._build_layout()
         self.update_values(np.zeros(8, dtype=float))
 
@@ -78,20 +83,124 @@ class LiveSensorPlot(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
         layout.addWidget(self._title_label)
-        layout.addWidget(self.plot_widget)
+        content_layout = QHBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(10)
+        content_layout.addWidget(self.plot_widget, stretch=1)
 
-    def update_values(self, values):
-        values = np.asarray(values, dtype=float)
-        heights = np.clip(values[:8], 0.0, None)
+        filter_layout = QVBoxLayout(self._sensor_filter_panel)
+        filter_layout.setContentsMargins(10, 10, 10, 10)
+        filter_layout.setSpacing(0)
+        for index in range(8):
+            checkbox = QCheckBox(f"R{index + 1}")
+            checkbox.setChecked(True)
+            checkbox.setMinimumHeight(36)
+            checkbox.toggled.connect(self._update_visible_sensors)
+            self._sensor_checkboxes.append(checkbox)
+            filter_layout.addWidget(checkbox)
+            if index < 7:
+                filter_layout.addStretch(1)
+        self._sensor_filter_panel.setStyleSheet("""
+            QWidget#sensorFilterPanel {
+                background-color: #ffffff;
+                border: 1px solid #d9e0e6;
+                border-radius: 10px;
+            }
+            QCheckBox {
+                color: #1f2a37;
+                spacing: 12px;
+                font-size: 14px;
+                padding-top: 4px;
+                padding-bottom: 4px;
+            }
+            QCheckBox::indicator {
+                width: 32px;
+                height: 32px;
+                border: 2px solid #94a3b8;
+                border-radius: 6px;
+                background-color: #ffffff;
+            }
+            QCheckBox::indicator:unchecked:hover {
+                border: 2px solid #3b82f6;
+                background-color: #eff6ff;
+            }
+            QCheckBox::indicator:checked {
+                border: 2px solid #2563eb;
+                border-radius: 6px;
+                background-color: #2563eb;
+                image: none;
+            }
+            QCheckBox::indicator:checked:hover {
+                border: 2px solid #1d4ed8;
+                background-color: #1d4ed8;
+            }
+        """)
+
+        content_layout.addWidget(self._sensor_filter_panel)
+        layout.addLayout(content_layout)
+
+    def _update_visible_sensors(self):
+        visible_indices = [index for index, checkbox in enumerate(self._sensor_checkboxes) if checkbox.isChecked()]
+        self._visible_sensor_indices = visible_indices
+        self._redraw_plot()
+
+    def set_visible_sensor_indices(self, indices: list[int] | tuple[int, ...], lock_selection: bool = False):
+        normalized_indices = sorted({int(index) for index in indices if 0 <= int(index) < len(self._sensor_checkboxes)})
+        for index, checkbox in enumerate(self._sensor_checkboxes):
+            checkbox.blockSignals(True)
+            checkbox.setChecked(index in normalized_indices)
+            checkbox.setEnabled(not lock_selection or index in normalized_indices)
+            checkbox.blockSignals(False)
+        self._visible_sensor_indices = normalized_indices
+        self._redraw_plot()
+
+    def reset_sensor_filter(self):
+        self.set_visible_sensor_indices(tuple(range(len(self._sensor_checkboxes))), lock_selection=False)
+
+    def _redraw_plot(self):
+        if self._visible_sensor_indices:
+            x_values = np.arange(1, len(self._visible_sensor_indices) + 1, dtype=float)
+            heights = np.clip(self._latest_values[self._visible_sensor_indices], 0.0, None)
+            ticks = [
+                (position, f"R{sensor_index + 1}")
+                for position, sensor_index in enumerate(self._visible_sensor_indices, start=1)
+            ]
+            x_min = 0.5
+            x_max = len(self._visible_sensor_indices) + 0.5
+        else:
+            x_values = np.array([], dtype=float)
+            heights = np.array([], dtype=float)
+            ticks = [(index, f"R{index}") for index in range(1, 9)]
+            x_min = 0.5
+            x_max = 8.5
+
         y_max = max(
             4.0,
             self.baseline_value + self.threshold + 0.25,
-            float(np.max(heights)) + 0.25,
-        ) if heights.size else max(4.0, self.baseline_value + self.threshold + 0.25)
+            float(np.max(heights)) + 0.25 if heights.size else 0.0,
+        )
         self.plot_widget.setYRange(0.0, y_max, padding=0.02)
+        self.plot_widget.setXRange(x_min, x_max, padding=0.0)
+        self.plot_widget.getPlotItem().getViewBox().setLimits(xMin=0.5, xMax=max(8.5, x_max), yMin=0.0)
+        self.plot_widget.getAxis("bottom").setTicks([ticks])
         self._threshold_band.setRegion((self.baseline_value - self.threshold, self.baseline_value + self.threshold))
         self._baseline_line.setValue(self.baseline_value)
-        self._bar_item.setOpts(x=np.arange(1, len(heights) + 1, dtype=float), height=heights)
+        self._bar_item.setOpts(x=x_values, height=heights)
+
+    def update_values(self, values):
+        values = np.asarray(values, dtype=float)
+        self._latest_values = np.zeros(8, dtype=float)
+        if values.size:
+            self._latest_values[: min(8, values.size)] = values[:8]
+        self._redraw_plot()
+
+    def set_threshold(self, threshold: float):
+        self.threshold = float(threshold)
+        self._redraw_plot()
+
+    def set_baseline_value(self, baseline_value: float):
+        self.baseline_value = float(baseline_value)
+        self._redraw_plot()
 
 
 class LiveForcePlot(QWidget):
@@ -204,6 +313,14 @@ class LiveForcePlot(QWidget):
         if self.target_force == target_force:
             return
         self.target_force = target_force
+        self._update_static_ranges()
+        self._redraw()
+
+    def set_threshold(self, threshold: float):
+        threshold = float(threshold)
+        if self.threshold == threshold:
+            return
+        self.threshold = threshold
         self._update_static_ranges()
         self._redraw()
 
@@ -395,24 +512,17 @@ class XYGridPlot(QWidget):
         self._draw_sample_axes(membrane_patch)
 
     def _draw_sample_axes(self, membrane_patch):
-        if not self.test_points:
-            return
-
-        vertical_points = [point for point in self.test_points if math.isclose(point[0], 0.0, abs_tol=1e-9)]
-
-        if vertical_points:
-            min_y = min(point[1] for point in vertical_points)
-            max_y = max(point[1] for point in vertical_points)
-            line = self.axis.plot(
-                [0.0, 0.0],
-                [min_y, max_y],
-                color="black",
-                linewidth=1.6,
-                linestyle=(0, (4, 3)),
-                alpha=0.8,
-                zorder=1.2,
-            )[0]
-            line.set_clip_path(membrane_patch)
+        profile_offset = 20.0
+        line = self.axis.plot(
+            [0.0, 0.0],
+            [-(self.membrane_size / 2.0) - profile_offset, (self.membrane_size / 2.0) + profile_offset],
+            color="black",
+            linewidth=1.6,
+            linestyle=(0, (4, 3)),
+            alpha=0.8,
+            zorder=1.2,
+        )[0]
+        line.set_clip_on(False)
 
     def _draw_eyelets(self):
         ring_radius = 7.0
@@ -549,11 +659,11 @@ class XYGridPlot(QWidget):
         )
         self.axis.set_xticks(x_ticks)
         self.axis.set_yticks(y_ticks)
-        self.axis.tick_params(axis="both", labelsize=8)
-        self.axis.set_xlabel("X [mm]")
-        self.axis.set_ylabel("Y [mm]")
-        self.axis.spines["left"].set_visible(True)
-        self.axis.spines["bottom"].set_visible(True)
+        self.axis.tick_params(axis="both", labelbottom=False, labelleft=False, length=0)
+        self.axis.set_xlabel("")
+        self.axis.set_ylabel("")
+        self.axis.spines["left"].set_visible(False)
+        self.axis.spines["bottom"].set_visible(False)
         self.axis.spines["left"].set_color("#54606e")
         self.axis.spines["bottom"].set_color("#54606e")
         self.axis.spines["left"].set_linewidth(1.0)
@@ -744,6 +854,10 @@ class CalibrationStatusPanel(QWidget):
 
     def start_calibration(self):
         self.calibration_active = True
+        self._refresh_display()
+
+    def set_baseline_values(self, baseline_values):
+        self.baseline_values = np.asarray(baseline_values, dtype=float)
         self._refresh_display()
 
     def set_live_values(self, values):

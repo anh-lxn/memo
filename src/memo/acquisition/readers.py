@@ -38,50 +38,92 @@ except ImportError:  # pragma: no cover - depends on local environment
 SENSOR_COLUMNS = [f"Sensor R{i}" for i in range(1, 9)]
 
 FORCE_SERIAL_WINDOWS_FALLBACKS = ("COM6", "COM5", "COM4", "COM3")
-FORCE_SERIAL_LINUX_FALLBACKS = ("/dev/ttyUSB0", "/dev/ttyACM0", "/dev/serial0")
+FORCE_SERIAL_LINUX_FALLBACKS = (
+    "/dev/ttyUSB0",
+    "/dev/ttyUSB1",
+    "/dev/ttyACM0",
+    "/dev/ttyACM1",
+    "/dev/serial0",
+    "/dev/ttyAMA0",
+    "/dev/ttyS0",
+)
 
 
 def _looks_like_force_port(description: str, hwid: str, device: str) -> bool:
     text = " ".join(part for part in (description, hwid, device) if part).lower()
-    return any(token in text for token in ("usb", "serial", "uart", "ch340", "cp210", "acm", "ttyusb", "arduino"))
+    preferred_tokens = (
+        "usb",
+        "serial",
+        "uart",
+        "ch340",
+        "cp210",
+        "acm",
+        "ttyusb",
+        "arduino",
+        "ttyama",
+        "serial0",
+        "tty",
+    )
+    return any(token in text for token in preferred_tokens)
+
+
+def _list_detected_serial_ports() -> list[str]:
+    if serial is None:
+        return []
+
+    try:
+        from serial.tools import list_ports
+    except Exception:
+        return []
+
+    preferred_ports: list[str] = []
+    fallback_ports: list[str] = []
+    seen_devices: set[str] = set()
+
+    for port_info in list_ports.comports():
+        device = getattr(port_info, "device", "") or ""
+        description = getattr(port_info, "description", "") or ""
+        hwid = getattr(port_info, "hwid", "") or ""
+        manufacturer = getattr(port_info, "manufacturer", "") or ""
+        product = getattr(port_info, "product", "") or ""
+        interface = getattr(port_info, "interface", "") or ""
+        if not device or device in seen_devices:
+            continue
+        seen_devices.add(device)
+
+        port_text = " ".join((description, hwid, manufacturer, product, interface, device))
+        if _looks_like_force_port(port_text, "", ""):
+            preferred_ports.append(device)
+        else:
+            fallback_ports.append(device)
+
+    return preferred_ports + fallback_ports
+
+
+def resolve_force_serial_port_candidates(port: str | None = None) -> list[str]:
+    env_port = os.environ.get("MEMO_FORCE_PORT", "").strip()
+    candidates: list[str] = []
+
+    for candidate in (port, env_port):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+
+    for candidate in _list_detected_serial_ports():
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    fallback_ports = FORCE_SERIAL_WINDOWS_FALLBACKS if sys.platform.startswith("win") else FORCE_SERIAL_LINUX_FALLBACKS
+    for candidate in fallback_ports:
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    return candidates
 
 
 def resolve_force_serial_port(port: str | None = None) -> str:
     """Return the requested force port or a platform-appropriate default."""
 
-    env_port = os.environ.get("MEMO_FORCE_PORT", "").strip()
-    if port:
-        return port
-    if env_port:
-        return env_port
-
-    detected_ports: list[str] = []
-    if serial is not None:
-        try:
-            from serial.tools import list_ports
-
-            preferred_ports = []
-            fallback_ports = []
-            for port_info in list_ports.comports():
-                device = getattr(port_info, "device", "") or ""
-                description = getattr(port_info, "description", "") or ""
-                hwid = getattr(port_info, "hwid", "") or ""
-                if not device:
-                    continue
-                if _looks_like_force_port(description, hwid, device):
-                    preferred_ports.append(device)
-                else:
-                    fallback_ports.append(device)
-            detected_ports = preferred_ports + fallback_ports
-        except Exception:
-            detected_ports = []
-
-    if detected_ports:
-        return detected_ports[0]
-
-    if sys.platform.startswith("win"):
-        return FORCE_SERIAL_WINDOWS_FALLBACKS[0]
-    return FORCE_SERIAL_LINUX_FALLBACKS[0]
+    return resolve_force_serial_port_candidates(port)[0]
 
 
 class SensorReader(ABC):
@@ -178,6 +220,7 @@ class SerialForceReader:
 
     def __post_init__(self):
         self.port = resolve_force_serial_port(self.port)
+        self._port_candidates = resolve_force_serial_port_candidates(self.port)
         self._serial = None
         self._number_pattern = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
         self._lock = threading.Lock()
@@ -195,11 +238,27 @@ class SerialForceReader:
             return
         if serial is None:
             raise RuntimeError("pyserial is not installed.")
-        self._serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
-        try:
-            self._serial.reset_input_buffer()
-        except AttributeError:
-            pass
+        last_error: Exception | None = None
+        for candidate_port in resolve_force_serial_port_candidates(self.port):
+            try:
+                trial_serial = serial.Serial(candidate_port, self.baudrate, timeout=self.timeout)
+                try:
+                    trial_serial.reset_input_buffer()
+                except AttributeError:
+                    pass
+                self._serial = trial_serial
+                self.port = candidate_port
+                self._port_candidates = resolve_force_serial_port_candidates(candidate_port)
+                return
+            except Exception as exc:
+                last_error = exc
+
+        if last_error is None:
+            raise RuntimeError("No serial ports found for force sensor auto-detection.")
+        raise RuntimeError(
+            f"Could not open any detected force sensor port. Tried: {', '.join(resolve_force_serial_port_candidates(self.port))}. "
+            f"Last error: {last_error}"
+        )
 
     def start(self):
         if self._thread is not None and self._thread.is_alive():
