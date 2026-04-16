@@ -87,6 +87,11 @@ class XYGridPlot(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self.canvas)
 
+    @staticmethod
+    def _rotate_point_ccw(point: tuple[float, float]) -> tuple[float, float]:
+        x_value, y_value = float(point[0]), float(point[1])
+        return (-y_value, x_value)
+
     def _draw_corner_markers(self):
         half_size = self.corner_marker_size / 2.0
         corners = [
@@ -96,8 +101,9 @@ class XYGridPlot(QWidget):
             (self.x_limits[0], self.y_limits[0], 0.3),
         ]
         for center_x, center_y, alpha in corners:
+            rotated_x, rotated_y = self._rotate_point_ccw((center_x, center_y))
             marker = Rectangle(
-                (center_x - half_size, center_y - half_size),
+                (rotated_x - half_size, rotated_y - half_size),
                 self.corner_marker_size,
                 self.corner_marker_size,
                 facecolor="black",
@@ -128,9 +134,8 @@ class XYGridPlot(QWidget):
         half_width = sensor_width / 2.0
         half_height = sensor_height / 2.0
         for sensor_data in self.sensor_definitions:
-            center_x = float(sensor_data["x"])
-            center_y = float(sensor_data["y"])
-            rotation = float(sensor_data.get("rotation", 0.0))
+            center_x, center_y = self._rotate_point_ccw((float(sensor_data["x"]), float(sensor_data["y"])))
+            rotation = float(sensor_data.get("rotation", 0.0)) + 90.0
             name = str(sensor_data.get("name", "R?"))
 
             sensor = Rectangle(
@@ -184,8 +189,14 @@ class XYGridPlot(QWidget):
     def _draw_test_points(self):
         if not self.test_points:
             return
-        saved = np.array([point for point in self.test_points if point in self.saved_points], dtype=float)
-        pending = np.array([point for point in self.test_points if point not in self.saved_points], dtype=float)
+        saved = np.array(
+            [self._rotate_point_ccw(point) for point in self.test_points if point in self.saved_points],
+            dtype=float,
+        )
+        pending = np.array(
+            [self._rotate_point_ccw(point) for point in self.test_points if point not in self.saved_points],
+            dtype=float,
+        )
 
         if len(pending) > 0:
             self.axis.scatter(pending[:, 0], pending[:, 1], color="red", s=34, zorder=3)
@@ -195,9 +206,10 @@ class XYGridPlot(QWidget):
         selected_point = self.get_selected_point()
         if selected_point is not None:
             selected_is_saved = selected_point in self.saved_points
+            rotated_selected = self._rotate_point_ccw(selected_point)
             self.axis.scatter(
-                [selected_point[0]],
-                [selected_point[1]],
+                [rotated_selected[0]],
+                [rotated_selected[1]],
                 color="green" if selected_is_saved else "red",
                 edgecolors="black",
                 linewidths=1.2,
@@ -207,9 +219,10 @@ class XYGridPlot(QWidget):
         else:
             active_point = self.get_active_point()
             if active_point is not None:
+                rotated_active = self._rotate_point_ccw(active_point)
                 self.axis.scatter(
-                    [active_point[0]],
-                    [active_point[1]],
+                    [rotated_active[0]],
+                    [rotated_active[1]],
                     color="red",
                     edgecolors="black",
                     linewidths=1.2,
@@ -339,7 +352,7 @@ class XYGridPlot(QWidget):
             return
 
         click = np.array([float(event.xdata), float(event.ydata)])
-        distances = [np.linalg.norm(np.array(point) - click) for point in points]
+        distances = [np.linalg.norm(np.array(self._rotate_point_ccw(point)) - click) for point in points]
         nearest_point = points[int(np.argmin(distances))]
         self.manual_selected_point = nearest_point
         self._draw_grid()
