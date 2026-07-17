@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import os
 import sys
 import time
 from collections import deque
@@ -36,6 +37,14 @@ DEFAULT_ADDRESSES = tuple(range(0x30, 0x38))
 EMPIRICAL_MV_PER_COUNT = 2.647355617e-6
 EMPIRICAL_MV_OFFSET = -0.146334057
 SERIAL_PAIR_PATTERN = re.compile(r"0x([0-7][0-9a-fA-F])\s*[=:]\s*(-?\d+)")
+SERIAL_ERROR_PATTERN = re.compile(r"0x([0-7][0-9a-fA-F])\s*[=:]\s*ERR(\d*)", re.IGNORECASE)
+SCANNER_LINE_MARKERS = (
+    "arduino i2c scanner ready",
+    "scanning i2c bus",
+    "i2c device found",
+    "scan done",
+    "found ",
+)
 
 # ---------------------------------------------------------------------------
 # Live-Plot-Konfiguration
@@ -49,20 +58,66 @@ CONFIG_SOURCE = "serial"
 # Fuer Raspberry Pi mit Arduino per USB ist meistens "/dev/ttyACM0" oder
 # "/dev/ttyUSB0" richtig. None versucht eine automatische Erkennung.
 CONFIG_SERIAL_PORT = "/dev/ttyACM0"
-CONFIG_SERIAL_BAUDRATE = 115200
-CONFIG_SERIAL_TIMEOUT = 1.0
+CONFIG_SERIAL_BAUDRATE = 230400
+CONFIG_SERIAL_TIMEOUT = 0.02
+CONFIG_SERIAL_DEBUG = False
 
 # Fuer direkte Raspberry-Pi-I2C-Nutzung.
 CONFIG_I2C_BUS = 1
 CONFIG_HX711_GAIN = 64
 
-# Acht HX711-Adressen.
-CONFIG_ADDRESSES = list(DEFAULT_ADDRESSES)
+# Erstmal nur eine Adresse plotten. Mehrere Adressen und Saturation-Werte wie
+# 8388607 machen die Y-Skalierung schnell unlesbar.
+CONFIG_ADDRESSES = [0x31]
 
 # Anzeige.
 CONFIG_DISPLAY_GAIN = 128.0
 CONFIG_REFRESH_MS = 100
 CONFIG_HISTORY_SECONDS = 5.0
+
+
+def env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    return int(value, 0)
+
+
+def env_float(name: str, default: float) -> float:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return default
+    return float(value)
+
+
+def env_port(name: str, default: str | None) -> str | None:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    value = value.strip()
+    if value.lower() in {"", "none", "auto"}:
+        return None
+    return value
+
+
+def env_addresses(name: str, default: list[int]) -> list[int]:
+    value = os.environ.get(name)
+    if value is None or not value.strip():
+        return list(default)
+
+    addresses = []
+    for token in value.replace(";", ",").split(","):
+        token = token.strip()
+        if token:
+            addresses.append(int(token, 0))
+    return addresses or list(default)
 
 
 def counts_to_bridge_voltage_mv(raw_value: int) -> float:
@@ -136,12 +191,17 @@ class I2CHx711Source(Hx711Source):
 
 
 class SerialHx711Source(Hx711Source):
-    def __init__(self, port: str | None, baudrate: int, timeout: float, addresses: list[int]):
+    def __init__(self, port: str | None, baudrate: int, timeout: float, addresses: list[int], debug: bool = False):
         self.port = port
         self.baudrate = int(baudrate)
         self.timeout = float(timeout)
         self.addresses = list(addresses)
+        self.debug = bool(debug)
         self.connection = None
+        self.last_line = ""
+        self.last_parse_error = ""
+        self.latest_values: dict[int, int] = {}
+        self._line_buffer = b""
 
     def open(self):
         if serial is None:
@@ -151,7 +211,7 @@ class SerialHx711Source(Hx711Source):
         if not port:
             raise RuntimeError("Kein Arduino-Serial-Port gefunden. Bitte --port angeben.")
 
-        self.connection = serial.Serial(port=port, baudrate=self.baudrate, timeout=self.timeout)
+        self.connection = serial.Serial(port=port, baudrate=self.baudrate, timeout=0)
         self.port = port
         time.sleep(2.0)
         try:
@@ -163,13 +223,32 @@ class SerialHx711Source(Hx711Source):
         if self.connection is None:
             raise RuntimeError("Serial-Verbindung ist nicht geoeffnet.")
 
-        while True:
-            raw_line = self.connection.readline()
-            if not raw_line:
-                raise TimeoutError("Keine HX711-Zeile vom Arduino empfangen.")
+        waiting = getattr(self.connection, "in_waiting", 0)
+        if waiting:
+            self._line_buffer += self.connection.read(waiting)
 
+        complete_lines = []
+        while b"\n" in self._line_buffer:
+            raw_line, self._line_buffer = self._line_buffer.split(b"\n", 1)
+            complete_lines.append(raw_line)
+
+        read_any_line = bool(complete_lines)
+        max_lines_per_refresh = 25
+        for raw_line in complete_lines[-max_lines_per_refresh:]:
             text = raw_line.decode("ascii", errors="ignore").strip()
+            self.last_line = text
+            if self.debug:
+                print(f"Arduino serial: {text}")
+
             if not text.startswith("HX711"):
+                lowered_text = text.lower()
+                if any(marker in lowered_text for marker in SCANNER_LINE_MARKERS):
+                    self.last_parse_error = (
+                        "Arduino sendet I2C-Scanner-Ausgabe statt HX711-Rohwerten. "
+                        "Bitte den Arduino-Bridge-Sketch arduino_hx711_qwiic_serial_bridge.ino flashen"
+                    )
+                else:
+                    self.last_parse_error = "Zeile startet nicht mit HX711"
                 continue
 
             values: dict[int, int] = {}
@@ -179,7 +258,28 @@ class SerialHx711Source(Hx711Source):
                     values[address] = int(match.group(2))
 
             if values:
-                return values
+                self.last_parse_error = ""
+                self.latest_values = values
+                continue
+
+            errors = []
+            for match in SERIAL_ERROR_PATTERN.finditer(text):
+                address = int(match.group(1), 16)
+                if address in self.addresses:
+                    errors.append(f"0x{address:02X}=ERR{match.group(2)}")
+            if errors:
+                self.last_parse_error = "Arduino meldet I2C/HX711-Fehler: " + ", ".join(errors)
+            else:
+                self.last_parse_error = "HX711-Zeile ohne parsebare Zahlenwerte"
+
+        if self.latest_values:
+            return dict(self.latest_values)
+
+        if read_any_line:
+            detail = self.last_parse_error or "keine passende HX711-Zeile empfangen"
+            if self.last_line:
+                raise TimeoutError(f"{detail}. Letzte Arduino-Zeile: {self.last_line!r}")
+        raise TimeoutError("Warte auf erste HX711-Zeile vom Arduino.")
 
     def close(self):
         if self.connection is not None:
@@ -207,8 +307,9 @@ class MultiVoltagePlotWidget(QWidget):
         self.plot_widget.hideButtons()
         self.plot_widget.showGrid(x=True, y=True, alpha=0.18)
         self.plot_widget.setLabel("bottom", "Zeit [s]")
-        self.plot_widget.setLabel("left", "Brueckenspannung [mV]")
-        self.plot_widget.setTitle("HX711 Brueckenspannung 0x30-0x37")
+        self.plot_widget.setLabel("left", "HX711 Raw Counts")
+        address_text = ", ".join(f"0x{address:02X}" for address in self.addresses)
+        self.plot_widget.setTitle(f"HX711 Raw Counts {address_text}")
 
         colors = ("#0f8b6d", "#bc4749", "#3a86ff", "#ffbe0b", "#8338ec", "#fb5607", "#2a9d8f", "#6c757d")
         self.curves = {}
@@ -251,7 +352,7 @@ class MultiVoltagePlotWidget(QWidget):
     def _update_plot(self):
         if not self.timestamps:
             self.plot_widget.setXRange(-self.history_seconds, 0.0, padding=0.0)
-            self.plot_widget.setYRange(-0.01, 0.01, padding=0.1)
+            self.plot_widget.setYRange(-1.0, 1.0, padding=0.1)
             return
 
         latest_ts = self.timestamps[-1].timestamp()
@@ -302,8 +403,8 @@ class Hx711LivePlotWindow(QMainWindow):
 
         self.status_label = QLabel("Status: Verbinde...")
         self.raw_label = QLabel("Raw: -")
-        self.bridge_voltage_label = QLabel("Brueckenspannung: -")
-        self.amplified_voltage_label = QLabel("Verstaerkt: -")
+        self.bridge_voltage_label = QLabel("mV-Schaetzung: -")
+        self.amplified_voltage_label = QLabel("Verstaerkte mV-Schaetzung: -")
         self.plot_widget = MultiVoltagePlotWidget(addresses=self.addresses, history_seconds=history_seconds)
         self.exit_button = QPushButton("Exit")
 
@@ -357,13 +458,13 @@ class Hx711LivePlotWindow(QMainWindow):
             return
 
         timestamp = datetime.now()
-        bridge_values = {
+        estimated_bridge_values = {
             address: counts_to_bridge_voltage_mv(raw_value)
             for address, raw_value in raw_values.items()
         }
-        amplified_values = {
+        estimated_amplified_values = {
             address: bridge_value * self.display_gain
-            for address, bridge_value in bridge_values.items()
+            for address, bridge_value in estimated_bridge_values.items()
         }
 
         raw_text = " | ".join(
@@ -372,20 +473,20 @@ class Hx711LivePlotWindow(QMainWindow):
             if address in raw_values
         )
         bridge_text = " | ".join(
-            f"0x{address:02X}: {bridge_values[address]:.2f} mV"
+            f"0x{address:02X}: {estimated_bridge_values[address]:.2f} mV"
             for address in self.addresses
-            if address in bridge_values
+            if address in estimated_bridge_values
         )
         amplified_text = " | ".join(
-            f"0x{address:02X}: {amplified_values[address]:.2f} mV"
+            f"0x{address:02X}: {estimated_amplified_values[address]:.2f} mV"
             for address in self.addresses
-            if address in amplified_values
+            if address in estimated_amplified_values
         )
 
         self.raw_label.setText(f"Raw: {raw_text or '-'}")
-        self.bridge_voltage_label.setText(f"Brueckenspannung: {bridge_text or '-'}")
-        self.amplified_voltage_label.setText(f"Verstaerkt x{self.display_gain:g}: {amplified_text or '-'}")
-        self.plot_widget.append_values(timestamp, bridge_values)
+        self.bridge_voltage_label.setText(f"mV-Schaetzung aus alter Kalibrierung: {bridge_text or '-'}")
+        self.amplified_voltage_label.setText(f"Verstaerkte mV-Schaetzung x{self.display_gain:g}: {amplified_text or '-'}")
+        self.plot_widget.append_values(timestamp, raw_values)
 
     def closeEvent(self, event: QCloseEvent):
         if self.timer.isActive():
@@ -399,20 +500,21 @@ def main(argv=None) -> int:
         print("pyqtgraph is not installed. Please install it first.")
         return 1
 
-    source_mode = CONFIG_SOURCE.lower().strip()
-    addresses = list(CONFIG_ADDRESSES)
+    source_mode = os.environ.get("MEMO_HX711_SOURCE", CONFIG_SOURCE).lower().strip()
+    addresses = env_addresses("MEMO_HX711_ADDRESSES", CONFIG_ADDRESSES)
     if source_mode == "serial":
         source = SerialHx711Source(
-            port=CONFIG_SERIAL_PORT,
-            baudrate=CONFIG_SERIAL_BAUDRATE,
-            timeout=CONFIG_SERIAL_TIMEOUT,
+            port=env_port("MEMO_HX711_SERIAL_PORT", CONFIG_SERIAL_PORT),
+            baudrate=env_int("MEMO_HX711_SERIAL_BAUDRATE", CONFIG_SERIAL_BAUDRATE),
+            timeout=env_float("MEMO_HX711_SERIAL_TIMEOUT", CONFIG_SERIAL_TIMEOUT),
             addresses=addresses,
+            debug=env_bool("MEMO_HX711_SERIAL_DEBUG", CONFIG_SERIAL_DEBUG),
         )
     elif source_mode == "i2c":
         source = I2CHx711Source(
-            bus_number=CONFIG_I2C_BUS,
+            bus_number=env_int("MEMO_HX711_I2C_BUS", CONFIG_I2C_BUS),
             addresses=addresses,
-            gain=CONFIG_HX711_GAIN,
+            gain=env_int("MEMO_HX711_GAIN", CONFIG_HX711_GAIN),
         )
     else:
         print(f"Ungueltige CONFIG_SOURCE: {CONFIG_SOURCE!r}. Erlaubt: 'serial' oder 'i2c'.")

@@ -18,6 +18,7 @@ pandas==2.2.3
 pillow==11.0.0
 pyftdi==0.55.4
 pyparsing==3.2.0
+pyserial==3.5
 python-dateutil==2.9.0.post0
 pytz==2024.2
 pyqtgraph==0.13.7

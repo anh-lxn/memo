@@ -19,7 +19,16 @@ except ImportError:  # pragma: no cover - depends on local environment
     list_ports = None
 
 
-ADDRESS_PATTERN = re.compile(r"(?:0x)?([0-7][0-9a-fA-F])\b")
+ADDRESS_PATTERN = re.compile(r"I2C device found at 0x([0-7][0-9a-fA-F])\b", re.IGNORECASE)
+SCANNER_MARKERS = (
+    "arduino i2c scanner ready",
+    "scanning i2c bus",
+    "i2c device found",
+    "scan done",
+    "no i2c devices found",
+    "unknown i2c error",
+    "found ",
+)
 
 
 def parse_address_tokens(line: str) -> list[int]:
@@ -29,6 +38,11 @@ def parse_address_tokens(line: str) -> list[int]:
         if 0x03 <= value <= 0x77:
             addresses.append(value)
     return addresses
+
+
+def looks_like_scanner_line(line: str) -> bool:
+    lowered_line = line.lower()
+    return any(marker in lowered_line for marker in SCANNER_MARKERS)
 
 
 def auto_detect_arduino_port() -> str | None:
@@ -93,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     found_addresses: set[int] = set()
+    saw_scanner_output = False
+    saw_decode_noise = False
     print(f"Verbinde mit Arduino auf {port} @ {args.baudrate} baud ...")
 
     try:
@@ -118,7 +134,11 @@ def main(argv: list[str] | None = None) -> int:
                     continue
 
                 print(f"Arduino: {line}")
-                found_addresses.update(parse_address_tokens(line))
+                if "\ufffd" in line:
+                    saw_decode_noise = True
+                if looks_like_scanner_line(line):
+                    saw_scanner_output = True
+                    found_addresses.update(parse_address_tokens(line))
 
     except serial.SerialException as exc:
         print(f"Serielle Verbindung fehlgeschlagen: {exc}")
@@ -131,6 +151,18 @@ def main(argv: list[str] | None = None) -> int:
         formatted = ", ".join(f"0x{address:02X}" for address in sorted(found_addresses))
         print(f"Gefundene I2C-Adressen: {formatted}")
         return 0
+
+    if saw_decode_noise:
+        print("Die Arduino-Ausgabe sieht nach kaputtem Text aus.")
+        print("Wahrscheinlich ist die Baudrate falsch oder auf dem Arduino laeuft nicht der I2C-Scanner-Sketch.")
+        print("Aktuell erwartet dieses Skript den Scanner-Sketch mit 115200 baud.")
+        return 3
+
+    if not saw_scanner_output:
+        print("Keine I2C-Scanner-Ausgabe erkannt.")
+        print("Zum Scannen muss arduino_i2c_scanner.ino auf dem Arduino laufen.")
+        print("Wenn der HX711-Bridge-Sketch laeuft, nutze den Live-Plot statt dieses Scanner-Tests.")
+        return 3
 
     print("Keine I2C-Adressen in der Arduino-Ausgabe erkannt.")
     print("Erwartet werden z. B. Zeilen wie: I2C device found at 0x30")
